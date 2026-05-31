@@ -5,7 +5,9 @@ import { MeshoptDecoder } from "https://cdn.jsdelivr.net/npm/three@0.165.0/examp
 const app = document.querySelector(".app");
 const modelStage = document.querySelector("#modelStage");
 const canvas = document.querySelector("#relicCanvas");
+const modelPreview = document.querySelector("#modelPreview");
 const modelLoading = document.querySelector("#modelLoading");
+const modelLoadingDetail = document.querySelector("#modelLoadingDetail");
 const hudTop = document.querySelector("#hudTop");
 const hudLeft = document.querySelector("#hudLeft");
 const hudCode = document.querySelector("#hudCode");
@@ -217,7 +219,8 @@ function initRenderer() {
   camera.position.set(0, 0.05, 6.2);
 
   renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  const mobileViewport = window.matchMedia("(max-width: 720px)").matches;
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, mobileViewport ? 1.35 : 2));
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.18;
@@ -304,6 +307,7 @@ function frameModel(root) {
 function loadModel() {
   const loader = new GLTFLoader();
   loader.setMeshoptDecoder(MeshoptDecoder);
+  const startedAt = performance.now();
 
   loader.load(
     canvas.dataset.model,
@@ -315,11 +319,23 @@ function loadModel() {
       createScanField();
       createFlowField();
       createFeatureAnnotations();
+      canvas.classList.add("is-ready");
+      modelPreview.classList.add("is-hidden");
       modelLoading.classList.add("is-hidden");
     },
-    undefined,
+    (event) => {
+      if (!event.lengthComputable) {
+        if (performance.now() - startedAt > 1800) {
+          modelLoadingDetail.textContent = "模型文件较大，正在继续加载；当前可先浏览文字信息。";
+        }
+        return;
+      }
+      const percent = Math.min(99, Math.round((event.loaded / event.total) * 100));
+      modelLoadingDetail.textContent = `已加载 ${percent}% · 首次打开会稍慢，之后浏览器会缓存`;
+    },
     (error) => {
-      modelLoading.textContent = "模型加载失败，请确认 GLB 文件和网络 CDN 可访问。";
+      modelLoading.querySelector("strong").textContent = "3D 模型加载失败";
+      modelLoadingDetail.textContent = "已保留文物预览图，可以刷新或换网络后重试。";
       console.error(error);
     },
   );

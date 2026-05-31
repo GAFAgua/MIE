@@ -4,7 +4,9 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>MIE | 羊头纹杏形金叶 3D观察台</title>
-    <link rel="stylesheet" href="styles.css?v=lines-opaque-1" />
+    <link rel="preload" href="yangtou-jinye.jpeg" as="image" />
+    <link rel="preload" href="tripo-yangtou-jinye.glb" as="fetch" crossorigin />
+    <link rel="stylesheet" href="styles.css?v=fast-preview-1" />
     <script type="importmap">
       {
         "imports": {
@@ -47,6 +49,13 @@
                 data-model="tripo-yangtou-jinye.glb"
                 aria-label="羊头纹杏形金叶 Tripo 3D模型"
               ></canvas>
+              <img
+                class="model-preview"
+                id="modelPreview"
+                src="yangtou-jinye.jpeg"
+                alt=""
+                aria-hidden="true"
+              />
               <div class="scan-layer" aria-hidden="true">
                 <span style="--x: 16%; --y: 19%"></span>
                 <span style="--x: 24%; --y: 34%"></span>
@@ -81,7 +90,10 @@
                 <span><b class="legend-amber"></b>黄线 / 结构关系</span>
                 <span><b class="legend-white"></b>白点 / 表面采样</span>
               </div>
-              <div class="model-loading" id="modelLoading">正在加载 Tripo 3D 模型...</div>
+              <div class="model-loading" id="modelLoading">
+                <strong>正在加载 3D 模型</strong>
+                <span id="modelLoadingDetail">先显示文物预览，模型加载完成后自动切换</span>
+              </div>
             </div>
 
             <div class="annotation annotation-a">
@@ -169,7 +181,7 @@
       </section>
     </main>
 
-    <script type="module" src="script.js?v=lines-opaque-1"></script>
+    <script type="module" src="script.js?v=fast-preview-1"></script>
   </body>
 </html>
 

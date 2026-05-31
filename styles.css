@@ -164,6 +164,32 @@ h1 {
   height: 100%;
   border-radius: 8px;
   outline: none;
+  opacity: 0;
+  transition: opacity 220ms ease;
+}
+
+#relicCanvas.is-ready {
+  opacity: 1;
+}
+
+.model-preview {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: 3;
+  width: min(440px, 72%);
+  max-height: 76%;
+  object-fit: contain;
+  opacity: 0.42;
+  filter: grayscale(1) contrast(1.08) brightness(0.8);
+  transform: translate(-50%, -50%);
+  transition: opacity 260ms ease, transform 260ms ease;
+  pointer-events: none;
+}
+
+.model-preview.is-hidden {
+  opacity: 0;
+  transform: translate(-50%, -50%) scale(0.98);
 }
 
 .model-stage::before {
@@ -185,15 +211,29 @@ h1 {
   left: 50%;
   top: 50%;
   z-index: 7;
-  padding: 10px 14px;
+  width: min(320px, 82%);
+  padding: 12px 14px;
   border: 1px solid rgba(238, 242, 238, 0.2);
   border-radius: 999px;
   background: rgba(12, 13, 13, 0.9);
   color: #dfe3df;
-  font-size: 14px;
+  display: grid;
+  gap: 5px;
+  text-align: center;
   transform: translate(-50%, -50%);
   transition: opacity 180ms ease;
   pointer-events: none;
+}
+
+.model-loading strong {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.model-loading span {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
 }
 
 .model-loading.is-hidden {
