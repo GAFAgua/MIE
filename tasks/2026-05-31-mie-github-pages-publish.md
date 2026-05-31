@@ -22,9 +22,19 @@
 - `deploy/index.html` 中图片路径改为根目录 `yangtou-jinye.jpeg`，避免上传子文件夹时路径丢失。
 - 确认 `GAFAgua/MIE` 仓库已由用户创建，仓库为公开状态，默认分支为 `main`。
 - 准备将当前项目根目录作为 GitHub Pages 根目录发布。
+- 初始化本地 Git 仓库并推送到 `GAFAgua/MIE` 的 `main` 分支。
+- 推送 `gh-pages` 分支，并确认 GitHub Pages source 为 `gh-pages` 分支根目录。
+- 验证公开链接 `https://gafagua.github.io/MIE/` 返回 `200`，文物图片资源也返回 `200`。
 
 ## 复现与测试步骤
 
 1. 将项目推送到公开 GitHub 仓库 `GAFAgua/MIE` 的 `main` 分支。
 2. 在仓库 Settings 的 Pages 中选择从 `main` 分支根目录发布。
 3. 打开 `https://gafagua.github.io/MIE/`，确认页面加载并可使用 `1-6` 触发镜头。
+
+## 本次发布结果
+
+- 仓库地址：`https://github.com/GAFAgua/MIE`
+- 公开网页：`https://gafagua.github.io/MIE/`
+- GitHub Pages 状态：`built`
+- GitHub Pages source：`gh-pages` 分支根目录
