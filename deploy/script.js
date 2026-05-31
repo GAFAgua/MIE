@@ -169,17 +169,24 @@ function resetObservation() {
 }
 
 function updateLens(event) {
-  const rect = modelStage.getBoundingClientRect();
-  const x = event.clientX - rect.left;
-  const y = event.clientY - rect.top;
-  const inside = x >= 0 && y >= 0 && x <= rect.width && y <= rect.height;
+  const stageRect = modelStage.getBoundingClientRect();
+  const modelRect = leafModel.getBoundingClientRect();
+  const x = event.clientX - stageRect.left;
+  const y = event.clientY - stageRect.top;
+  const modelX = event.clientX - modelRect.left;
+  const modelY = event.clientY - modelRect.top;
+  const inside =
+    modelX >= 0 &&
+    modelY >= 0 &&
+    modelX <= modelRect.width &&
+    modelY <= modelRect.height;
 
   lens.classList.toggle("is-visible", inside && !isDragging);
   if (!inside) return;
 
   lens.style.left = `${x}px`;
   lens.style.top = `${y}px`;
-  lens.style.backgroundPosition = `${(x / rect.width) * 100}% ${(y / rect.height) * 100}%`;
+  lens.style.backgroundPosition = `${(modelX / modelRect.width) * 100}% ${(modelY / modelRect.height) * 100}%`;
 }
 
 buttons.forEach((button) => {
