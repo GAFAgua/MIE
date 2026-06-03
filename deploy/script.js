@@ -37,7 +37,7 @@ const scenes = {
     code: "FORM-01",
     hud: "外缘闭合曲线标记杏形金薄片边界。该类金片原缀于南越王玉衣面罩丝巾之上，边界用于理解其组合方式。",
     rotation: [-0.06, 0, 0],
-    zoom: 1.08,
+    zoom: 0.94,
   },
   2: {
     id: "foil",
@@ -50,7 +50,7 @@ const scenes = {
     code: "MAT-02",
     hud: "侧缘线追踪金箔厚度。丝巾已朽烂而金饰保存，使薄片材质成为判断佩缀方式的重要依据。",
     rotation: [-0.05, 0.38, 0],
-    zoom: 1.1,
+    zoom: 0.96,
   },
   3: {
     id: "relief",
@@ -63,7 +63,7 @@ const scenes = {
     code: "CRAFT-03",
     hud: "细框锁定锤鍱形成的弧形肋纹。线条不是装饰轮廓，而是在读取金片表面的敲压痕迹。",
     rotation: [-0.32, 0.34, -0.04],
-    zoom: 1.28,
+    zoom: 1.08,
   },
   4: {
     id: "ram",
@@ -76,7 +76,7 @@ const scenes = {
     code: "MOTIF-04",
     hud: "顶部细线标注尖角羊头纹。尖角、眼窝与鼻梁构成识别点，并与草原文化纹饰发生联系。",
     rotation: [-0.18, -0.12, 0],
-    zoom: 1.42,
+    zoom: 1.18,
   },
   5: {
     id: "symmetry",
@@ -89,7 +89,7 @@ const scenes = {
     code: "STRUCT-05",
     hud: "中轴线将左右浮雕分为相背的两组羊头。对称关系提示金片图案并非单个兽面，而是双羊结构。",
     rotation: [-0.04, 0, 0],
-    zoom: 1.18,
+    zoom: 1,
   },
   6: {
     id: "stitch",
@@ -102,7 +102,7 @@ const scenes = {
     code: "USE-06",
     hud: "孔位被作为功能节点标出。它们联系到金饰原缀于丝巾之上的保存信息，而不是纯装饰点。",
     rotation: [-0.1, -0.42, 0.02],
-    zoom: 1.24,
+    zoom: 1.04,
   },
 };
 
@@ -336,7 +336,7 @@ function frameModel(root) {
   const maxSize = Math.max(size.x, size.y, size.z);
 
   root.position.sub(center);
-  root.scale.setScalar(3.15 / maxSize);
+  root.scale.setScalar(2.72 / maxSize);
   root.rotation.y = MODEL_FRONT_OFFSET_Y;
 
   const framedBox = new THREE.Box3().setFromObject(root);
