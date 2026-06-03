@@ -117,6 +117,7 @@ let camera;
 let relicRoot;
 let modelPivot;
 let annotationRoot;
+let lineOverlayRoot;
 let scanRoot;
 let flowRoot;
 let resetTimer = 0;
@@ -265,6 +266,8 @@ function initRenderer() {
   annotationRoot = new THREE.Group();
   annotationRoot.visible = false;
   modelPivot.add(annotationRoot);
+  lineOverlayRoot = new THREE.Group();
+  modelPivot.add(lineOverlayRoot);
   scanRoot = new THREE.Group();
   flowRoot = new THREE.Group();
   modelPivot.add(scanRoot, flowRoot);
@@ -345,6 +348,7 @@ function loadModel() {
       tintModel(relicRoot);
       frameModel(relicRoot);
       modelPivot.add(relicRoot);
+      createLineOverlays();
       createScanField();
       canvas.classList.add("is-ready");
       modelPreview.classList.add("is-hidden");
@@ -377,16 +381,87 @@ function updateHud(item) {
 }
 
 function setAnnotation(name) {
-  if (!annotationRoot) return;
-  annotationRoot.visible = false;
-  annotationRoot.children.forEach((child) => {
-    child.visible = false;
-  });
+  if (annotationRoot) {
+    annotationRoot.visible = false;
+    annotationRoot.children.forEach((child) => {
+      child.visible = false;
+    });
+  }
+  if (lineOverlayRoot) {
+    const activeName = name === "foil" ? "outline" : name;
+    lineOverlayRoot.children.forEach((child) => {
+      child.visible = child.name === activeName;
+    });
+  }
   if (flowRoot) {
     flowRoot.children.forEach((child) => {
       child.visible = false;
     });
   }
+}
+
+function createLineOverlays() {
+  if (!lineOverlayRoot) return;
+  lineOverlayRoot.clear();
+
+  const assetPrefix = canvas.dataset.model.startsWith("assets/") ? "assets/" : "";
+  const loader = new THREE.TextureLoader();
+  const overlays = [
+    {
+      name: "outline",
+      file: "outline.png",
+      width: 3.18,
+      height: 3.18,
+      position: [0, 0.02, 0.74],
+      opacity: 0.9,
+    },
+    {
+      name: "relief",
+      file: "relief.png",
+      width: 3.12,
+      height: 2.55,
+      position: [0, 0.15, 0.755],
+      opacity: 0.86,
+    },
+    {
+      name: "ram",
+      file: "ram.png",
+      width: 1.48,
+      height: 0.82,
+      position: [0, 1.05, 0.77],
+      opacity: 0.92,
+    },
+    {
+      name: "symmetry",
+      file: "symmetry.png",
+      width: 3.05,
+      height: 2.25,
+      position: [0, -0.06, 0.765],
+      opacity: 0.88,
+    },
+  ];
+
+  overlays.forEach((overlay) => {
+    loader.load(`${assetPrefix}line-overlays/${overlay.file}`, (texture) => {
+      texture.colorSpace = THREE.SRGBColorSpace;
+      texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+      const material = new THREE.MeshBasicMaterial({
+        map: texture,
+        transparent: true,
+        opacity: overlay.opacity,
+        depthTest: false,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+      });
+      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(overlay.width, overlay.height), material);
+      mesh.name = overlay.name;
+      mesh.position.set(...overlay.position);
+      mesh.renderOrder = 55;
+      const activeName = app.dataset.scene === "foil" ? "outline" : app.dataset.scene;
+      mesh.visible = mesh.name === activeName;
+      lineOverlayRoot.add(mesh);
+    });
+  });
 }
 
 function point(x, y, z = 0.57) {
