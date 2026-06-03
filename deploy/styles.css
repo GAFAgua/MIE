@@ -692,10 +692,28 @@ h1 {
   font-weight: 800;
 }
 
+.controls button.has-thumb span {
+  border: 1px solid rgba(238, 242, 238, 0.5);
+  background:
+    linear-gradient(rgba(255, 255, 255, 0.66), rgba(255, 255, 255, 0.66)),
+    url("line-overlays/outline.png") center / 88% auto no-repeat,
+    #f4f3ef;
+  color: transparent;
+}
+
 .controls button.is-active span,
 .controls button.is-done span {
   background: var(--gold);
   color: #050606;
+}
+
+.controls button.has-thumb.is-active span,
+.controls button.has-thumb.is-done span {
+  background:
+    linear-gradient(rgba(216, 191, 115, 0.72), rgba(216, 191, 115, 0.72)),
+    url("line-overlays/outline.png") center / 88% auto no-repeat,
+    #f4f3ef;
+  color: transparent;
 }
 
 .controls button strong {
@@ -1155,3 +1173,4 @@ h1 {
     transition-duration: 1ms !important;
   }
 }
+

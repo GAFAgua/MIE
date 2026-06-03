@@ -290,9 +290,9 @@ function tintModel(root) {
     metalness: 0.56,
     roughness: 0.42,
     envMapIntensity: 0.9,
-    transparent: true,
-    opacity: 0.75,
-    depthWrite: false,
+    transparent: false,
+    opacity: 1,
+    depthWrite: true,
   });
 
   root.traverse((child) => {
