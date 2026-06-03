@@ -43,14 +43,14 @@ const scenes = {
     id: "foil",
     kicker: "KEY 2 / MATERIAL",
     title: "金箔薄片",
-    text: "模型转向侧面，观察金叶厚度和浮雕起伏。",
+    text: "模型轻微转向，观察金叶薄片边缘和整体外轮廓。",
     feature: "材质特征",
     translate: "金片为薄金属片，侧缘显示金箔薄片与浮雕起伏的差异。",
-    annotation: "侧面观察：真实模型边缘可见",
+    annotation: "斜侧观察：外轮廓线稿贴近模型表面",
     code: "MAT-02",
     hud: "侧缘线追踪金箔厚度。丝巾已朽烂而金饰保存，使薄片材质成为判断佩缀方式的重要依据。",
-    rotation: [-0.04, 1.18, 0],
-    zoom: 1.12,
+    rotation: [-0.05, 0.38, 0],
+    zoom: 1.1,
   },
   3: {
     id: "relief",
@@ -126,6 +126,13 @@ let startX = 0;
 let startY = 0;
 let targetZoom = 1;
 let currentZoom = 1;
+
+function syncLineOverlayFacing() {
+  if (!lineOverlayRoot || !modelPivot) return;
+  const sideways = Math.abs(modelPivot.rotation.y);
+  const compensation = THREE.MathUtils.clamp(modelPivot.rotation.y * -0.35, -0.26, 0.26);
+  lineOverlayRoot.rotation.y = sideways > 0.22 ? compensation : 0;
+}
 
 function updateProgress() {
   const count = observed.size;
@@ -412,7 +419,7 @@ function createLineOverlays() {
       file: "outline.png",
       width: 3.18,
       height: 3.18,
-      position: [0, 0.02, 0.74],
+      position: [0, 0.02, 0.18],
       opacity: 0.9,
     },
     {
@@ -420,7 +427,7 @@ function createLineOverlays() {
       file: "relief.png",
       width: 3.12,
       height: 2.55,
-      position: [0, 0.15, 0.755],
+      position: [0, 0.15, 0.185],
       opacity: 0.86,
     },
     {
@@ -428,7 +435,7 @@ function createLineOverlays() {
       file: "ram.png",
       width: 1.48,
       height: 0.82,
-      position: [0, 1.05, 0.77],
+      position: [0, 1.05, 0.19],
       opacity: 0.92,
     },
     {
@@ -436,7 +443,7 @@ function createLineOverlays() {
       file: "symmetry.png",
       width: 3.05,
       height: 2.25,
-      position: [0, -0.06, 0.765],
+      position: [0, -0.06, 0.188],
       opacity: 0.88,
     },
   ];
@@ -691,6 +698,7 @@ function animate() {
   if (modelPivot) {
     modelPivot.rotation.copy(currentRotation);
     modelPivot.scale.setScalar(currentZoom);
+    syncLineOverlayFacing();
   }
 
   renderer.render(scene, camera);
