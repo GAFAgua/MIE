@@ -180,8 +180,8 @@ h1 {
   width: min(440px, 72%);
   max-height: 76%;
   object-fit: contain;
-  opacity: 0.42;
-  filter: grayscale(1) contrast(1.08) brightness(0.8);
+  opacity: 0.46;
+  filter: sepia(0.62) saturate(1.25) hue-rotate(352deg) contrast(1.06) brightness(0.78);
   transform: translate(-50%, -50%);
   transition: opacity 260ms ease, transform 260ms ease;
   pointer-events: none;
