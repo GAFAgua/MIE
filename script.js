@@ -413,36 +413,37 @@ function createLineOverlays() {
 
   const assetPrefix = canvas.dataset.model.startsWith("assets/") ? "assets/" : "";
   const loader = new THREE.TextureLoader();
+  const overlayScale = 0.92;
   const overlays = [
     {
       name: "outline",
       file: "outline-only.png",
-      width: 3.18,
-      height: 3.18,
+      width: 3.18 * overlayScale,
+      height: 3.18 * overlayScale,
       position: [0, 0.02, 0.18],
       opacity: 0.9,
     },
     {
       name: "relief",
       file: "relief.png",
-      width: 3.12,
-      height: 2.55,
+      width: 3.12 * overlayScale,
+      height: 2.55 * overlayScale,
       position: [0, 0.15, 0.185],
       opacity: 0.86,
     },
     {
       name: "ram",
       file: "ram.png",
-      width: 1.48,
-      height: 0.82,
+      width: 1.48 * overlayScale,
+      height: 0.82 * overlayScale,
       position: [0, 1.05, 0.19],
       opacity: 0.92,
     },
     {
       name: "symmetry",
       file: "symmetry.png",
-      width: 3.05,
-      height: 2.25,
+      width: 3.05 * overlayScale,
+      height: 2.25 * overlayScale,
       position: [0, -0.06, 0.188],
       opacity: 0.88,
     },

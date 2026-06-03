@@ -696,7 +696,7 @@ h1 {
   border: 1px solid rgba(238, 242, 238, 0.5);
   background:
     linear-gradient(rgba(255, 255, 255, 0.66), rgba(255, 255, 255, 0.66)),
-    url("assets/line-overlays/outline-only.png") center / 88% auto no-repeat,
+    url("assets/line-overlays/outline-only.png") center / 76% auto no-repeat,
     #f4f3ef;
   color: transparent;
 }
@@ -711,7 +711,7 @@ h1 {
 .controls button.has-thumb.is-done span {
   background:
     linear-gradient(rgba(216, 191, 115, 0.72), rgba(216, 191, 115, 0.72)),
-    url("assets/line-overlays/outline-only.png") center / 88% auto no-repeat,
+    url("assets/line-overlays/outline-only.png") center / 76% auto no-repeat,
     #f4f3ef;
   color: transparent;
 }
