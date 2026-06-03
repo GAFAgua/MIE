@@ -416,7 +416,7 @@ function createLineOverlays() {
   const overlays = [
     {
       name: "outline",
-      file: "outline.png",
+      file: "outline-only.png",
       width: 3.18,
       height: 3.18,
       position: [0, 0.02, 0.18],
