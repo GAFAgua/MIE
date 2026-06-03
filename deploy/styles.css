@@ -250,7 +250,7 @@ h1 {
 
 .scan-layer::before,
 .scan-layer::after {
-  content: "";
+  content: none;
   position: absolute;
   inset: 7% 9%;
   border: 1px solid rgba(235, 238, 235, 1);
@@ -307,51 +307,6 @@ h1 {
   font-size: 10px;
   line-height: 1.2;
   text-transform: uppercase;
-}
-
-.line-legend {
-  position: absolute;
-  left: 4%;
-  top: 18px;
-  z-index: 6;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  pointer-events: none;
-  color: #f1f3f0;
-  font-size: 11px;
-  line-height: 1.2;
-  font-family: Consolas, "Courier New", monospace;
-  text-transform: uppercase;
-}
-
-.line-legend span {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 6px;
-  border: 1px solid rgba(238, 242, 238, 0.82);
-  background: rgba(0, 0, 0, 0.88);
-}
-
-.line-legend b {
-  display: inline-block;
-  width: 18px;
-  height: 1px;
-}
-
-.legend-red {
-  background: #ff2838;
-}
-
-.legend-amber {
-  background: #d18a25;
-}
-
-.legend-white {
-  background: #f7faf6;
-  box-shadow: 0 0 0 2px #f7faf6;
-  width: 4px;
 }
 
 .hud-top {

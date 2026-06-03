@@ -280,6 +280,9 @@ function tintModel(root) {
     metalness: 0.56,
     roughness: 0.42,
     envMapIntensity: 0.9,
+    transparent: true,
+    opacity: 0.75,
+    depthWrite: false,
   });
 
   root.traverse((child) => {
@@ -287,7 +290,33 @@ function tintModel(root) {
     child.castShadow = true;
     child.receiveShadow = true;
     child.material = paleGold.clone();
+    addLedEdges(child);
   });
+}
+
+function addLedEdges(mesh) {
+  const edges = new THREE.EdgesGeometry(mesh.geometry, 34);
+  const material = new THREE.LineBasicMaterial({
+    color: 0xffffff,
+    transparent: true,
+    opacity: 0.92,
+    depthTest: false,
+  });
+  const line = new THREE.LineSegments(edges, material);
+  line.renderOrder = 40;
+  line.scale.setScalar(1.003);
+  mesh.add(line);
+
+  const glowMaterial = new THREE.LineBasicMaterial({
+    color: 0xffffff,
+    transparent: true,
+    opacity: 0.32,
+    depthTest: false,
+  });
+  const glow = new THREE.LineSegments(edges.clone(), glowMaterial);
+  glow.renderOrder = 39;
+  glow.scale.setScalar(1.012);
+  mesh.add(glow);
 }
 
 function frameModel(root) {
@@ -317,8 +346,6 @@ function loadModel() {
       frameModel(relicRoot);
       modelPivot.add(relicRoot);
       createScanField();
-      createFlowField();
-      createFeatureAnnotations();
       canvas.classList.add("is-ready");
       modelPreview.classList.add("is-hidden");
       modelLoading.classList.add("is-hidden");
@@ -351,13 +378,13 @@ function updateHud(item) {
 
 function setAnnotation(name) {
   if (!annotationRoot) return;
-  annotationRoot.visible = name !== "none";
+  annotationRoot.visible = false;
   annotationRoot.children.forEach((child) => {
-    child.visible = child.name === name;
+    child.visible = false;
   });
   if (flowRoot) {
     flowRoot.children.forEach((child) => {
-      child.visible = name === "none" ? child.name === "global" : child.name === name;
+      child.visible = false;
     });
   }
 }
