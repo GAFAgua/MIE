@@ -196,3 +196,23 @@
 上传说明：
 - 本机未安装 `gh` 命令；GitHub 连接器当前只支持操作已有仓库，不能直接创建新仓库。
 - 已先准备本地 Git 快照；上传需要后续提供已有 GitHub 仓库地址，或先在 GitHub 创建空仓库。
+
+## 追加记录：上传到 GitHub `GAFAgua/MIE`
+
+用户提供目标仓库：`https://github.com/GAFAgua/MIE`。
+
+处理：
+- 初始化本地 Git 仓库。
+- 设置本项目本地提交身份：`gua <gua@example.local>`。
+- 绑定远程仓库 `origin` 到 `https://github.com/GAFAgua/MIE.git`。
+- 检查远程已有 `main` 与 `gh-pages` 分支。
+- 为避免覆盖已有远程内容，将当前三版本网站推送到新分支 `yang-gold-leaf-sites`。
+
+结果：
+- 本地提交：`91e7dee Add three gold leaf site versions`。
+- 远程分支：`yang-gold-leaf-sites`。
+- GitHub PR 地址：`https://github.com/GAFAgua/MIE/pull/new/yang-gold-leaf-sites`。
+
+注意：
+- 当前没有强推或覆盖远程 `main` / `gh-pages`。
+- 若要让 GitHub Pages 直接访问这三个版本，需要在 GitHub 上合并分支，或把 Pages 来源设置到该分支/对应目录。
