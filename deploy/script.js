@@ -120,6 +120,7 @@ let annotationRoot;
 let lineOverlayRoot;
 let scanRoot;
 let flowRoot;
+let reliefVideo;
 let resetTimer = 0;
 let isDragging = false;
 let startX = 0;
@@ -399,12 +400,42 @@ function setAnnotation(name) {
     lineOverlayRoot.children.forEach((child) => {
       child.visible = child.name === activeName;
     });
+    if (activeName === "relief") {
+      playReliefVideo();
+    } else if (reliefVideo) {
+      reliefVideo.pause();
+    }
   }
   if (flowRoot) {
     flowRoot.children.forEach((child) => {
       child.visible = false;
     });
   }
+}
+
+function playReliefVideo() {
+  if (!reliefVideo) return;
+
+  const start = () => {
+    reliefVideo.pause();
+    try {
+      reliefVideo.currentTime = 0;
+    } catch {
+      // Some browsers delay seeking until metadata is available.
+    }
+    const playPromise = reliefVideo.play();
+    if (playPromise) {
+      playPromise.catch(() => {});
+    }
+  };
+
+  if (reliefVideo.readyState >= 1) {
+    start();
+    return;
+  }
+
+  reliefVideo.addEventListener("loadedmetadata", start, { once: true });
+  reliefVideo.load();
 }
 
 function createLineOverlays() {
@@ -425,11 +456,12 @@ function createLineOverlays() {
     },
     {
       name: "relief",
-      file: "relief.png",
+      file: "relief.webm",
+      type: "video",
       width: 3.12 * overlayScale,
       height: 2.55 * overlayScale,
       position: [0, 0.15, 0.185],
-      opacity: 0.86,
+      opacity: 1,
     },
     {
       name: "ram",
@@ -450,6 +482,45 @@ function createLineOverlays() {
   ];
 
   overlays.forEach((overlay) => {
+    if (overlay.type === "video") {
+      const video = document.createElement("video");
+      video.src = `${assetPrefix}line-overlays/${overlay.file}`;
+      video.muted = true;
+      video.playsInline = true;
+      video.preload = "auto";
+      video.loop = false;
+      video.crossOrigin = "anonymous";
+      video.addEventListener("ended", () => {
+        video.pause();
+      });
+
+      const texture = new THREE.VideoTexture(video);
+      texture.colorSpace = THREE.SRGBColorSpace;
+      texture.minFilter = THREE.LinearFilter;
+      texture.magFilter = THREE.LinearFilter;
+
+      const material = new THREE.MeshBasicMaterial({
+        map: texture,
+        transparent: true,
+        opacity: overlay.opacity,
+        depthTest: false,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+      });
+      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(overlay.width, overlay.height), material);
+      mesh.name = overlay.name;
+      mesh.position.set(...overlay.position);
+      mesh.renderOrder = 55;
+      mesh.visible = app.dataset.scene === mesh.name;
+      lineOverlayRoot.add(mesh);
+      reliefVideo = video;
+      video.load();
+      if (mesh.visible) {
+        playReliefVideo();
+      }
+      return;
+    }
+
     loader.load(`${assetPrefix}line-overlays/${overlay.file}`, (texture) => {
       texture.colorSpace = THREE.SRGBColorSpace;
       texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
