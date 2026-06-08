@@ -231,7 +231,7 @@ function initRenderer() {
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, mobileViewport ? 1.35 : 2));
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 0.82;
+  renderer.toneMappingExposure = 0.9;
 
   scene.add(new THREE.HemisphereLight(0xf5f5f2, 0x565a5d, 1.12));
 
@@ -286,7 +286,7 @@ function initRenderer() {
 
 function tintModel(root) {
   const paleGold = new THREE.MeshStandardMaterial({
-    color: 0xb7a86e,
+    color: 0xbf9000,
     metalness: 0.48,
     roughness: 0.5,
     envMapIntensity: 0.42,
