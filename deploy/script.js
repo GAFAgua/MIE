@@ -286,7 +286,7 @@ function initRenderer() {
 
 function tintModel(root) {
   const paleGold = new THREE.MeshStandardMaterial({
-    color: 0x8f7b45,
+    color: 0xb7a86e,
     metalness: 0.48,
     roughness: 0.5,
     envMapIntensity: 0.42,
