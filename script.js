@@ -231,19 +231,19 @@ function initRenderer() {
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, mobileViewport ? 1.35 : 2));
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.18;
+  renderer.toneMappingExposure = 0.82;
 
-  scene.add(new THREE.HemisphereLight(0xf5f5f2, 0x6a6d6f, 1.9));
+  scene.add(new THREE.HemisphereLight(0xf5f5f2, 0x565a5d, 1.12));
 
-  const key = new THREE.DirectionalLight(0xffffff, 4.2);
+  const key = new THREE.DirectionalLight(0xffffff, 2.45);
   key.position.set(-3.2, 4.1, 5.2);
   scene.add(key);
 
-  const fill = new THREE.DirectionalLight(0xb7c0c4, 1.45);
+  const fill = new THREE.DirectionalLight(0xb7c0c4, 0.72);
   fill.position.set(3.6, -1.4, 2.4);
   scene.add(fill);
 
-  const rim = new THREE.DirectionalLight(0xffffff, 2.2);
+  const rim = new THREE.DirectionalLight(0xffffff, 1.35);
   rim.position.set(0, 2.5, -3.2);
   scene.add(rim);
 
@@ -286,10 +286,10 @@ function initRenderer() {
 
 function tintModel(root) {
   const paleGold = new THREE.MeshStandardMaterial({
-    color: 0xd8bf73,
-    metalness: 0.56,
-    roughness: 0.42,
-    envMapIntensity: 0.9,
+    color: 0x8f7b45,
+    metalness: 0.48,
+    roughness: 0.5,
+    envMapIntensity: 0.42,
     transparent: false,
     opacity: 1,
     depthWrite: true,
