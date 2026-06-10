@@ -717,9 +717,8 @@ function createOverlayMaterial(texture, overlay) {
         void main() {
           vec4 sampleColor = texture2D(map, vUv);
           float luminance = dot(sampleColor.rgb, vec3(0.299, 0.587, 0.114));
-          float alpha = sampleColor.a > 0.04 ? sampleColor.a : smoothstep(0.62, 0.96, luminance);
-          alpha *= opacity;
-          if (alpha < 0.08) discard;
+          float alpha = max(sampleColor.a, luminance) * opacity;
+          if (alpha < 0.02) discard;
           gl_FragColor = vec4(vec3(1.0), alpha);
         }
       `,
@@ -767,12 +766,12 @@ function createReliefParticles(overlay, assetPrefix) {
     const pixels = context.getImageData(0, 0, sampleSize, sampleSize).data;
     const candidates = [];
 
-    for (let y = 0; y < sampleSize; y += 3) {
-      for (let x = 0; x < sampleSize; x += 3) {
+    for (let y = 0; y < sampleSize; y += 2) {
+      for (let x = 0; x < sampleSize; x += 2) {
         const index = (y * sampleSize + x) * 4;
         const luminance = pixels[index] * 0.299 + pixels[index + 1] * 0.587 + pixels[index + 2] * 0.114;
         const alpha = pixels[index + 3];
-        if (alpha > 72 && luminance > 90) {
+        if (alpha > 32 && luminance > 28) {
           candidates.push([x / sampleSize, y / sampleSize]);
         }
       }
@@ -786,7 +785,7 @@ function createReliefParticles(overlay, assetPrefix) {
       return seed / 4294967296;
     };
 
-    const count = Math.min(360, candidates.length);
+    const count = Math.min(900, candidates.length);
     const positions = [];
     const directions = [];
     const phases = [];
@@ -799,7 +798,7 @@ function createReliefParticles(overlay, assetPrefix) {
       const x = (point[0] - 0.5 + jitterX) * overlay.width;
       const y = (0.5 - point[1] + jitterY) * overlay.height;
       const angle = random() * Math.PI * 2;
-      const spread = 0.035 + random() * 0.075;
+      const spread = 0.09 + random() * 0.18;
 
       positions.push(
         x + overlay.position[0],
@@ -808,7 +807,7 @@ function createReliefParticles(overlay, assetPrefix) {
       );
       directions.push(Math.cos(angle) * spread, Math.sin(angle) * spread, 0.02 + random() * 0.06);
       phases.push(random());
-      sizes.push(1.4 + random() * 2.2);
+      sizes.push(6 + random() * 8);
     }
 
     const geometry = new THREE.BufferGeometry();
@@ -834,7 +833,7 @@ function createReliefParticles(overlay, assetPrefix) {
           vec3 animated = position + direction * life * burst;
           vec4 mvPosition = modelViewMatrix * vec4(animated, 1.0);
           gl_Position = projectionMatrix * mvPosition;
-          gl_PointSize = size * (1.0 - life * 0.5) * (180.0 / -mvPosition.z);
+          gl_PointSize = size * (1.0 - life * 0.56) * (260.0 / -mvPosition.z);
           vLife = life;
         }
       `,
@@ -843,8 +842,8 @@ function createReliefParticles(overlay, assetPrefix) {
 
         void main() {
           vec2 center = gl_PointCoord - vec2(0.5);
-          float falloff = 1.0 - smoothstep(0.08, 0.5, length(center));
-          float alpha = falloff * (1.0 - smoothstep(0.34, 1.0, vLife)) * 0.24;
+          float falloff = 1.0 - smoothstep(0.0, 0.5, length(center));
+          float alpha = falloff * (1.0 - smoothstep(0.44, 1.0, vLife)) * 0.72;
           if (alpha < 0.025) discard;
           gl_FragColor = vec4(vec3(1.0), alpha);
         }
@@ -852,7 +851,7 @@ function createReliefParticles(overlay, assetPrefix) {
       transparent: true,
       depthTest: false,
       depthWrite: false,
-      blending: THREE.NormalBlending,
+      blending: THREE.AdditiveBlending,
     });
 
     const particles = new THREE.Points(geometry, reliefParticleMaterial);
