@@ -923,6 +923,9 @@ function createOverlayMaterial(texture, overlay) {
         map: { value: texture },
         opacity: { value: overlay.opacity },
         texelSize: { value: new THREE.Vector2(1 / (overlay.sourceWidth || 1920), 1 / (overlay.sourceHeight || 1080)) },
+        cleanMask: { value: overlay.cleanMask ? 1 : 0 },
+        maskThreshold: { value: overlay.maskThreshold || 0.32 },
+        sampleRadius: { value: overlay.sampleRadius || 1 },
       },
       vertexShader: `
         varying vec2 vUv;
@@ -936,6 +939,9 @@ function createOverlayMaterial(texture, overlay) {
         uniform sampler2D map;
         uniform float opacity;
         uniform vec2 texelSize;
+        uniform float cleanMask;
+        uniform float maskThreshold;
+        uniform float sampleRadius;
         varying vec2 vUv;
 
         float maskAlpha(vec2 uv) {
@@ -945,16 +951,27 @@ function createOverlayMaterial(texture, overlay) {
         }
 
         void main() {
+          vec2 stepSize = texelSize * sampleRadius;
           float center = maskAlpha(vUv);
-          float neighbor =
-            maskAlpha(vUv + vec2(texelSize.x, 0.0)) +
-            maskAlpha(vUv - vec2(texelSize.x, 0.0)) +
-            maskAlpha(vUv + vec2(0.0, texelSize.y)) +
-            maskAlpha(vUv - vec2(0.0, texelSize.y));
-          float connected = smoothstep(0.42, 1.18, neighbor);
-          float alpha = center * connected;
+          float alpha = center;
+
+          if (cleanMask > 0.5) {
+            float solidCenter = smoothstep(maskThreshold, maskThreshold + 0.18, center);
+            float neighbors =
+              step(maskThreshold, maskAlpha(vUv + vec2(stepSize.x, 0.0))) +
+              step(maskThreshold, maskAlpha(vUv - vec2(stepSize.x, 0.0))) +
+              step(maskThreshold, maskAlpha(vUv + vec2(0.0, stepSize.y))) +
+              step(maskThreshold, maskAlpha(vUv - vec2(0.0, stepSize.y))) +
+              step(maskThreshold, maskAlpha(vUv + vec2(stepSize.x, stepSize.y))) +
+              step(maskThreshold, maskAlpha(vUv + vec2(-stepSize.x, stepSize.y))) +
+              step(maskThreshold, maskAlpha(vUv + vec2(stepSize.x, -stepSize.y))) +
+              step(maskThreshold, maskAlpha(vUv + vec2(-stepSize.x, -stepSize.y)));
+            float connected = smoothstep(2.5, 5.5, neighbors);
+            alpha = solidCenter * connected;
+          }
+
           alpha *= opacity;
-          if (alpha < 0.12) discard;
+          if (alpha < 0.16) discard;
           gl_FragColor = vec4(vec3(1.0), alpha);
         }
       `,
@@ -1031,11 +1048,14 @@ function createLineOverlays() {
       fallbackFile: "symmetry.png",
       type: "video",
       whiteMask: true,
+      cleanMask: true,
       playbackRate: 0.5,
       sourceWidth: 1920,
       sourceHeight: 1080,
-      height: 5,
-      width: 5 * (16 / 9),
+      sampleRadius: 2,
+      maskThreshold: 0.34,
+      width: 5,
+      height: 5 * (2.64 / 4.7),
       position: [0, -0.25, 0.19],
       opacity: 1,
     },
