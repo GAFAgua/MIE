@@ -99,6 +99,24 @@ h1 {
   cursor: pointer;
 }
 
+.panel-toggle {
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid rgba(238, 242, 238, 0.28);
+  border-radius: 999px;
+  background: transparent;
+  color: #dfe3df;
+  cursor: pointer;
+  transition: border-color 160ms ease, background 160ms ease, color 160ms ease;
+}
+
+.panel-toggle:hover,
+.panel-toggle:focus-visible {
+  outline: none;
+  border-color: rgba(238, 242, 238, 0.68);
+  background: rgba(238, 242, 238, 0.08);
+}
+
 .detail-card .gesture-toggle {
   width: 100%;
   min-height: 42px;
@@ -134,6 +152,14 @@ h1 {
   grid-template-columns: minmax(0, 1fr) 340px;
   gap: 18px;
   padding: 0 22px 22px;
+}
+
+.app[data-inspector="closed"] .workspace {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.app[data-inspector="closed"] .inspector {
+  display: none;
 }
 
 .viewer {
@@ -878,6 +904,20 @@ h1 {
   padding: 0 22px 22px;
 }
 
+.knowledge-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  padding: 0 22px;
+}
+
+.app[data-knowledge="closed"] .knowledge {
+  display: none;
+}
+
+.app[data-knowledge="closed"] .knowledge-toolbar {
+  padding-bottom: 22px;
+}
+
 .knowledge article {
   position: relative;
   min-height: 178px;
@@ -1215,7 +1255,8 @@ h1 {
   }
 
   .topbar,
-  .workspace {
+  .workspace,
+  .knowledge-toolbar {
     padding-left: 14px;
     padding-right: 14px;
   }

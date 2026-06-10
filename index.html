@@ -10,7 +10,7 @@
     <link rel="preload" href="assets/line-overlays/relief.webm" as="video" type="video/webm" />
     <link rel="preload" href="assets/line-overlays/ram.png" as="image" />
     <link rel="preload" href="assets/line-overlays/symmetry.png" as="image" />
-    <link rel="stylesheet" href="styles.css?v=scanfield-return-1" />
+    <link rel="stylesheet" href="styles.css?v=collapsible-panels-1" />
     <script type="importmap">
       {
         "imports": {
@@ -20,7 +20,7 @@
     </script>
   </head>
   <body>
-    <main class="app" data-scene="idle" data-report="closed">
+    <main class="app" data-scene="idle" data-report="closed" data-inspector="open" data-knowledge="open">
       <section class="desk" aria-label="羊头纹杏形金叶 3D观察台">
         <header class="topbar">
           <div>
@@ -32,6 +32,7 @@
             <div class="progress-track" aria-hidden="true">
               <span id="progressFill"></span>
             </div>
+            <button class="panel-toggle" type="button" id="inspectorToggle" aria-expanded="true" aria-controls="inspectorPanel">收起观察清单</button>
           </div>
         </header>
 
@@ -131,7 +132,7 @@
             </div>
           </section>
 
-          <aside class="inspector" aria-label="观察清单">
+          <aside class="inspector" id="inspectorPanel" aria-label="观察清单">
             <div class="scene-card">
               <p class="scene-kicker" id="sceneKicker">OBSERVATION DESK</p>
               <h2 id="sceneTitle">白底 3D 金叶观察台</h2>
@@ -180,7 +181,11 @@
           </aside>
         </div>
 
-        <section class="knowledge" aria-label="文物资料信息">
+        <div class="knowledge-toolbar">
+          <button class="panel-toggle" type="button" id="knowledgeToggle" aria-expanded="true" aria-controls="knowledgePanel">收起文物资料</button>
+        </div>
+
+        <section class="knowledge" id="knowledgePanel" aria-label="文物资料信息">
           <article>
             <h3>文物特征</h3>
             <p>该文物为西汉时期金器，由八块杏形金薄片组成，原缀于南越王玉衣面罩的丝巾之上。金片图案为两个尖角羊头纹，羊头两两相背，纹饰含有草原文化因素。</p>
@@ -211,6 +216,6 @@
       </section>
     </main>
 
-    <script type="module" src="script.js?v=scanfield-return-1"></script>
+    <script type="module" src="script.js?v=collapsible-panels-1"></script>
   </body>
 </html>

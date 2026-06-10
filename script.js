@@ -24,6 +24,8 @@ const detailTranslate = document.querySelector("#detailTranslate");
 const annotationLabel = document.querySelector("#annotationLabel");
 const reportGrid = document.querySelector("#reportGrid");
 const resetButton = document.querySelector("#resetButton");
+const inspectorToggle = document.querySelector("#inspectorToggle");
+const knowledgeToggle = document.querySelector("#knowledgeToggle");
 const gestureToggle = document.querySelector("#gestureToggle");
 const gesturePanel = document.querySelector("#gesturePanel");
 const gestureVideo = document.querySelector("#gestureVideo");
@@ -181,6 +183,19 @@ function updateProgress() {
 function setTarget(rotation, zoom = 1) {
   targetRotation.set(rotation[0], rotation[1], rotation[2]);
   targetZoom = zoom;
+}
+
+function setPanelState(name, open) {
+  app.dataset[name] = open ? "open" : "closed";
+  if (name === "inspector") {
+    inspectorToggle.textContent = open ? "收起观察清单" : "展开观察清单";
+    inspectorToggle.setAttribute("aria-expanded", String(open));
+  }
+  if (name === "knowledge") {
+    knowledgeToggle.textContent = open ? "收起文物资料" : "展开文物资料";
+    knowledgeToggle.setAttribute("aria-expanded", String(open));
+  }
+  requestAnimationFrame(resizeRenderer);
 }
 
 function getGestureMetrics() {
@@ -1155,6 +1170,12 @@ modelStage.addEventListener("pointercancel", () => {
 });
 
 resetButton.addEventListener("click", resetObservation);
+inspectorToggle.addEventListener("click", () => {
+  setPanelState("inspector", app.dataset.inspector === "closed");
+});
+knowledgeToggle.addEventListener("click", () => {
+  setPanelState("knowledge", app.dataset.knowledge === "closed");
+});
 gestureToggle.addEventListener("click", () => {
   if (gestureRunning || gestureStream) {
     stopGestureControl();
