@@ -583,33 +583,7 @@ function tintModel(root) {
     child.castShadow = true;
     child.receiveShadow = true;
     child.material = paleGold.clone();
-    addLedEdges(child);
   });
-}
-
-function addLedEdges(mesh) {
-  const edges = new THREE.EdgesGeometry(mesh.geometry, 34);
-  const material = new THREE.LineBasicMaterial({
-    color: 0xffffff,
-    transparent: true,
-    opacity: 0.92,
-    depthTest: false,
-  });
-  const line = new THREE.LineSegments(edges, material);
-  line.renderOrder = 40;
-  line.scale.setScalar(1.003);
-  mesh.add(line);
-
-  const glowMaterial = new THREE.LineBasicMaterial({
-    color: 0xffffff,
-    transparent: true,
-    opacity: 0.32,
-    depthTest: false,
-  });
-  const glow = new THREE.LineSegments(edges.clone(), glowMaterial);
-  glow.renderOrder = 39;
-  glow.scale.setScalar(1.012);
-  mesh.add(glow);
 }
 
 function frameModel(root) {
@@ -639,7 +613,6 @@ function loadModel() {
       frameModel(relicRoot);
       modelPivot.add(relicRoot);
       createLineOverlays();
-      createScanField();
       canvas.classList.add("is-ready");
       modelPreview.classList.add("is-hidden");
       modelLoading.classList.add("is-hidden");
@@ -973,48 +946,6 @@ function createFeatureAnnotations() {
   addTube(stitch, [[1.42, -0.45], [0.86, -1.18], [0.18, -1.62]], 0.0028);
 
   setAnnotation("none");
-}
-
-function seededRandom(seed) {
-  let value = seed;
-  return () => {
-    value = (value * 1664525 + 1013904223) % 4294967296;
-    return value / 4294967296;
-  };
-}
-
-function createScanField() {
-  scanRoot.clear();
-  const random = seededRandom(314159);
-  const vertices = [];
-  const colors = [];
-  const color = new THREE.Color();
-
-  for (let i = 0; i < 380; i += 1) {
-    const x = (random() - 0.5) * 3.25;
-    const y = (random() - 0.5) * 3.45;
-    const edgeFade = Math.max(Math.abs(x) / 1.7, Math.abs(y) / 1.78);
-    if (edgeFade > 1.08) continue;
-    const z = 0.68 + random() * 0.18;
-    vertices.push(x, y, z);
-    const tone = 0.65 + random() * 0.35;
-    color.setRGB(tone, tone, tone);
-    colors.push(color.r, color.g, color.b);
-  }
-
-  const geometry = new THREE.BufferGeometry();
-  geometry.setAttribute("position", new THREE.Float32BufferAttribute(vertices, 3));
-  geometry.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
-  const material = new THREE.PointsMaterial({
-    size: 0.014,
-    vertexColors: true,
-    transparent: true,
-    opacity: 1,
-    depthTest: false,
-  });
-  const points = new THREE.Points(geometry, material);
-  points.renderOrder = 20;
-  scanRoot.add(points);
 }
 
 function addFlow(name, coords, color = 0xc77a2a) {
