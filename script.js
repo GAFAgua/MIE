@@ -3,6 +3,11 @@ import { GLTFLoader } from "https://cdn.jsdelivr.net/npm/three@0.165.0/examples/
 import { MeshoptDecoder } from "https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/libs/meshopt_decoder.module.js";
 
 const app = document.querySelector(".app");
+const entryScreen = document.querySelector("#entryScreen");
+const entryLeaves = [...document.querySelectorAll(".entry-leaf")];
+const entryEnterButton = document.querySelector("#entryEnterButton");
+const entryGestureButton = document.querySelector("#entryGestureButton");
+const entryGestureStatus = document.querySelector("#entryGestureStatus");
 const modelStage = document.querySelector("#modelStage");
 const canvas = document.querySelector("#relicCanvas");
 const modelPreview = document.querySelector("#modelPreview");
@@ -155,6 +160,8 @@ let gestureLoopId = 0;
 let lastGestureVideoTime = -1;
 let lastGestureActionAt = 0;
 let lastGestureLabel = "";
+let entryFistPrimed = false;
+let entryActive = true;
 
 function syncLineOverlayFacing() {
   if (!lineOverlayRoot || !modelPivot) return;
@@ -196,6 +203,20 @@ function setPanelState(name, open) {
     knowledgeToggle.setAttribute("aria-expanded", String(open));
   }
   requestAnimationFrame(resizeRenderer);
+}
+
+function enterObservatory(selectedLeaf = null) {
+  if (!entryActive) return;
+  entryActive = false;
+  entryScreen.classList.add("is-zooming");
+  selectedLeaf?.classList.add("is-selected");
+  window.setTimeout(() => {
+    app.dataset.entry = "open";
+    resizeRenderer();
+  }, 520);
+  window.setTimeout(() => {
+    entryScreen.setAttribute("aria-hidden", "true");
+  }, 980);
 }
 
 function getGestureMetrics() {
@@ -315,6 +336,25 @@ function handleGestureResult(result, now) {
   const score = gesture?.score || 0;
   let selectedKey = null;
 
+  if (entryActive) {
+    if (!gesture || score < 0.62) {
+      entryGestureStatus.textContent = entryFistPrimed ? "松开手指即可进入" : "把手放入画面中央";
+      return;
+    }
+    if (label === "Closed_Fist") {
+      entryFistPrimed = true;
+      entryGestureStatus.textContent = "已识别握拳，松开手指进入";
+      return;
+    }
+    if (entryFistPrimed && (label === "Open_Palm" || label === "Pointing_Up")) {
+      entryGestureStatus.textContent = "正在进入观察台";
+      enterObservatory(entryLeaves[7]);
+      return;
+    }
+    entryGestureStatus.textContent = "请先握拳，再松开手指";
+    return;
+  }
+
   if (!gesture || score < 0.62) {
     drawGestureOverlay(landmarks, null);
     setActiveGestureGuide("");
@@ -394,6 +434,7 @@ async function startGestureControl() {
   gesturePanel.setAttribute("aria-hidden", "false");
   gestureToggle.classList.add("is-active");
   gestureToggle.textContent = "关闭手势";
+  entryGestureButton.textContent = "关闭手势进入";
   try {
     if (!navigator.mediaDevices?.getUserMedia) {
       throw new Error("Camera API is unavailable.");
@@ -413,6 +454,7 @@ async function startGestureControl() {
     gestureCanvas.height = gestureVideo.videoHeight || 480;
     gestureRunning = true;
     setGestureReadout("手势已开启", "用手指横向选择 1-6");
+    entryGestureStatus.textContent = "请握拳，然后松开手指进入";
 
     const detect = () => {
       if (!gestureRunning) return;
@@ -433,7 +475,9 @@ async function startGestureControl() {
     gestureStream = null;
     gestureVideo.srcObject = null;
     gestureToggle.textContent = "重试手势";
+    entryGestureButton.textContent = "重试手势进入";
     setGestureReadout("手势不可用", "需要浏览器允许摄像头权限");
+    entryGestureStatus.textContent = "需要允许摄像头权限";
   }
 }
 
@@ -447,6 +491,9 @@ function stopGestureControl() {
   gesturePanel.setAttribute("aria-hidden", "true");
   gestureToggle.classList.remove("is-active");
   gestureToggle.textContent = "开启摄像头手势";
+  entryGestureButton.textContent = "开启手势进入";
+  entryGestureStatus.textContent = "手势入口待机";
+  entryFistPrimed = false;
   lastGestureLabel = "";
   lastGestureActionAt = 0;
   setActiveGestureGuide("");
@@ -1094,6 +1141,20 @@ buttons.forEach((button) => {
   button.addEventListener("click", () => playScene(button.dataset.key));
 });
 
+entryLeaves.forEach((leaf) => {
+  leaf.addEventListener("click", () => enterObservatory(leaf));
+});
+
+entryEnterButton.addEventListener("click", () => enterObservatory(entryLeaves[7]));
+
+entryGestureButton.addEventListener("click", () => {
+  if (gestureRunning || gestureStream) {
+    stopGestureControl();
+    return;
+  }
+  startGestureControl();
+});
+
 window.addEventListener("keydown", (event) => {
   if (event.repeat) return;
   playScene(event.key);
@@ -1188,3 +1249,5 @@ window.addEventListener("resize", resizeRenderer);
 initRenderer();
 setIdle();
 updateProgress();
+setPanelState("inspector", false);
+setPanelState("knowledge", false);
