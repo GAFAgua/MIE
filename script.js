@@ -3,6 +3,10 @@ import { GLTFLoader } from "https://cdn.jsdelivr.net/npm/three@0.165.0/examples/
 import { MeshoptDecoder } from "https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/libs/meshopt_decoder.module.js";
 
 const app = document.querySelector(".app");
+const entryScreen = document.querySelector("#entryScreen");
+const entryCanvas = document.querySelector("#entryCanvas");
+const entryGestureButton = document.querySelector("#entryGestureButton");
+const entryGestureStatus = document.querySelector("#entryGestureStatus");
 const modelStage = document.querySelector("#modelStage");
 const canvas = document.querySelector("#relicCanvas");
 const modelPreview = document.querySelector("#modelPreview");
@@ -24,6 +28,15 @@ const detailTranslate = document.querySelector("#detailTranslate");
 const annotationLabel = document.querySelector("#annotationLabel");
 const reportGrid = document.querySelector("#reportGrid");
 const resetButton = document.querySelector("#resetButton");
+const inspectorToggle = document.querySelector("#inspectorToggle");
+const knowledgeToggle = document.querySelector("#knowledgeToggle");
+const gestureToggle = document.querySelector("#gestureToggle");
+const gesturePanel = document.querySelector("#gesturePanel");
+const gestureVideo = document.querySelector("#gestureVideo");
+const gestureCanvas = document.querySelector("#gestureCanvas");
+const gestureName = document.querySelector("#gestureName");
+const gestureStatus = document.querySelector("#gestureStatus");
+const gestureGuideItems = [...document.querySelectorAll("[data-gesture-guide]")];
 
 const scenes = {
   1: {
@@ -108,12 +121,25 @@ const scenes = {
 
 const observed = new Set();
 const MODEL_FRONT_OFFSET_Y = -Math.PI / 2;
+const VISION_VERSION = "0.10.35";
+const GESTURE_MODEL_URL =
+  "https://storage.googleapis.com/mediapipe-tasks/gesture_recognizer/gesture_recognizer.task";
 const targetRotation = new THREE.Euler(-0.08, 0.16, 0);
 const currentRotation = new THREE.Euler(-0.08, 0.16, 0);
 
 let renderer;
 let scene;
 let camera;
+let entryRenderer;
+let entryScene;
+let entryCamera;
+let entryParticleRoot;
+let entryLeafRoot;
+let entrySelectedLeaf;
+let entryClock = new THREE.Clock();
+const entryLeafObjects = [];
+const entryRaycaster = new THREE.Raycaster();
+const entryPointer = new THREE.Vector2();
 let relicRoot;
 let modelPivot;
 let annotationRoot;
@@ -122,11 +148,29 @@ let scanRoot;
 let flowRoot;
 let reliefVideo;
 let resetTimer = 0;
+const activePointers = new Map();
 let isDragging = false;
 let startX = 0;
 let startY = 0;
+let gestureStartDistance = 0;
+let gestureStartAngle = 0;
+let gestureStartZoom = 1;
+let gestureStartRotationZ = 0;
+let gestureHadMultiplePointers = false;
+let swipeStartX = 0;
+let swipeStartY = 0;
+let swipeStartTime = 0;
 let targetZoom = 1;
 let currentZoom = 1;
+let gestureRecognizer;
+let gestureStream;
+let gestureRunning = false;
+let gestureLoopId = 0;
+let lastGestureVideoTime = -1;
+let lastGestureActionAt = 0;
+let lastGestureLabel = "";
+let entryFistPrimed = false;
+let entryActive = true;
 
 function syncLineOverlayFacing() {
   if (!lineOverlayRoot || !modelPivot) return;
@@ -155,6 +199,463 @@ function updateProgress() {
 function setTarget(rotation, zoom = 1) {
   targetRotation.set(rotation[0], rotation[1], rotation[2]);
   targetZoom = zoom;
+}
+
+function setPanelState(name, open) {
+  app.dataset[name] = open ? "open" : "closed";
+  if (name === "inspector") {
+    inspectorToggle.textContent = open ? "收起观察清单" : "展开观察清单";
+    inspectorToggle.setAttribute("aria-expanded", String(open));
+  }
+  if (name === "knowledge") {
+    knowledgeToggle.textContent = open ? "收起文物资料" : "展开文物资料";
+    knowledgeToggle.setAttribute("aria-expanded", String(open));
+  }
+  requestAnimationFrame(resizeRenderer);
+}
+
+function enterObservatory(selectedLeaf = null) {
+  if (!entryActive) return;
+  entryActive = false;
+  entryScreen.classList.add("is-zooming");
+  entrySelectedLeaf = selectedLeaf;
+  window.setTimeout(() => {
+    app.dataset.entry = "open";
+    resizeRenderer();
+  }, 520);
+  window.setTimeout(() => {
+    entryScreen.setAttribute("aria-hidden", "true");
+  }, 980);
+}
+
+function createEntryParticles() {
+  const random = seededRandom(20260610);
+  const vertices = [];
+  const colors = [];
+  const color = new THREE.Color();
+  for (let i = 0; i < 1600; i += 1) {
+    const radius = 3.2 + random() * 7.8;
+    const angle = random() * Math.PI * 2;
+    const band = (random() - 0.5) * 2.1;
+    vertices.push(Math.cos(angle) * radius, band + Math.sin(angle * 1.7) * 0.28, Math.sin(angle) * radius - 2.8);
+    const tone = 0.38 + random() * 0.42;
+    color.setRGB(tone, tone, tone * 0.92);
+    colors.push(color.r, color.g, color.b);
+  }
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute("position", new THREE.Float32BufferAttribute(vertices, 3));
+  geometry.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
+  const material = new THREE.PointsMaterial({
+    size: 0.018,
+    vertexColors: true,
+    transparent: true,
+    opacity: 0.72,
+    depthWrite: false,
+  });
+  entryParticleRoot = new THREE.Points(geometry, material);
+  entryScene.add(entryParticleRoot);
+}
+
+function makeEntryLeaf(source, config) {
+  const leaf = source.clone(true);
+  leaf.traverse((child) => {
+    if (!child.isMesh) return;
+    child.material = new THREE.MeshStandardMaterial({
+      color: 0xbf9000,
+      metalness: 0.5,
+      roughness: 0.46,
+    });
+  });
+
+  const box = new THREE.Box3().setFromObject(leaf);
+  const center = box.getCenter(new THREE.Vector3());
+  const size = box.getSize(new THREE.Vector3());
+  leaf.position.sub(center);
+  leaf.scale.setScalar(config.scale / Math.max(size.x, size.y, size.z));
+  leaf.rotation.set(config.rotation[0], MODEL_FRONT_OFFSET_Y + config.rotation[1], config.rotation[2]);
+
+  const group = new THREE.Group();
+  group.position.set(config.position[0], config.position[1], config.position[2]);
+  group.add(leaf);
+  group.userData.baseY = config.position[1];
+  group.userData.floatSpeed = config.floatSpeed;
+  group.userData.floatPhase = config.floatPhase;
+  group.userData.entryLeaf = true;
+  entryLeafRoot.add(group);
+  entryLeafObjects.push(group);
+}
+
+function loadEntryLeaves() {
+  const loader = new GLTFLoader();
+  loader.setMeshoptDecoder(MeshoptDecoder);
+  const configs = [
+    { position: [-3.6, 1.35, -2.4], scale: 1.08, rotation: [-0.12, -0.35, 0.18], floatSpeed: 0.7, floatPhase: 0.2 },
+    { position: [-1.35, 2.0, -3.1], scale: 0.88, rotation: [-0.05, 0.18, -0.12], floatSpeed: 0.84, floatPhase: 1.4 },
+    { position: [1.52, 1.65, -2.7], scale: 1.02, rotation: [-0.16, -0.18, 0.08], floatSpeed: 0.76, floatPhase: 2.1 },
+    { position: [3.65, 0.38, -3.2], scale: 0.82, rotation: [-0.08, 0.32, -0.18], floatSpeed: 0.92, floatPhase: 3.0 },
+    { position: [2.6, -1.58, -2.45], scale: 0.94, rotation: [-0.18, -0.28, 0.2], floatSpeed: 0.74, floatPhase: 4.3 },
+    { position: [0.0, -2.0, -2.9], scale: 1.06, rotation: [-0.06, 0.1, -0.06], floatSpeed: 0.82, floatPhase: 5.2 },
+    { position: [-2.62, -1.45, -2.5], scale: 0.9, rotation: [-0.14, 0.24, 0.16], floatSpeed: 0.78, floatPhase: 6.1 },
+    { position: [0.02, -0.12, -1.85], scale: 1.34, rotation: [-0.1, 0, 0], floatSpeed: 0.68, floatPhase: 2.8 },
+  ];
+
+  loader.load(canvas.dataset.model, (gltf) => {
+    configs.forEach((config) => makeEntryLeaf(gltf.scene, config));
+  });
+}
+
+function initEntryRenderer() {
+  entryScene = new THREE.Scene();
+  entryCamera = new THREE.PerspectiveCamera(38, 1, 0.1, 100);
+  entryCamera.position.set(0, 0, 5.9);
+  entryRenderer = new THREE.WebGLRenderer({ canvas: entryCanvas, antialias: true, alpha: true });
+  entryRenderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.8));
+  entryRenderer.outputColorSpace = THREE.SRGBColorSpace;
+  entryRenderer.toneMapping = THREE.ACESFilmicToneMapping;
+  entryRenderer.toneMappingExposure = 0.92;
+
+  entryScene.add(new THREE.HemisphereLight(0xf5f5f2, 0x151515, 1.1));
+  const key = new THREE.DirectionalLight(0xffffff, 2.2);
+  key.position.set(-2.8, 3.2, 4.8);
+  entryScene.add(key);
+  const rim = new THREE.DirectionalLight(0xd7d2bd, 1.1);
+  rim.position.set(3.5, -0.8, -2.4);
+  entryScene.add(rim);
+
+  entryLeafRoot = new THREE.Group();
+  entryScene.add(entryLeafRoot);
+  createEntryParticles();
+  loadEntryLeaves();
+  resizeEntryRenderer();
+}
+
+function resizeEntryRenderer() {
+  if (!entryRenderer) return;
+  const width = Math.max(320, entryScreen.clientWidth);
+  const height = Math.max(320, entryScreen.clientHeight);
+  entryRenderer.setSize(width, height, false);
+  entryCamera.aspect = width / height;
+  entryCamera.updateProjectionMatrix();
+}
+
+function pickEntryLeaf(event) {
+  if (!entryActive || !entryLeafObjects.length) return null;
+  const rect = entryCanvas.getBoundingClientRect();
+  entryPointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+  entryPointer.y = -(((event.clientY - rect.top) / rect.height) * 2 - 1);
+  entryRaycaster.setFromCamera(entryPointer, entryCamera);
+  const hits = entryRaycaster.intersectObjects(entryLeafObjects, true);
+  if (!hits.length) return null;
+  let target = hits[0].object;
+  while (target && !target.userData.entryLeaf) {
+    target = target.parent;
+  }
+  return target;
+}
+
+function animateEntryScene(elapsed) {
+  if (!entryRenderer) return;
+  if (entryParticleRoot) {
+    entryParticleRoot.rotation.y = elapsed * 0.018;
+    entryParticleRoot.rotation.z = Math.sin(elapsed * 0.08) * 0.03;
+  }
+  entryLeafObjects.forEach((leaf, index) => {
+    if (leaf === entrySelectedLeaf) {
+      leaf.position.lerp(new THREE.Vector3(0, 0, 2.55), 0.08);
+      leaf.scale.lerp(new THREE.Vector3(7.8, 7.8, 7.8), 0.08);
+      leaf.rotation.z += 0.018;
+      return;
+    }
+    if (!entryActive) {
+      leaf.scale.lerp(new THREE.Vector3(0.05, 0.05, 0.05), 0.08);
+      return;
+    }
+    leaf.position.y = leaf.userData.baseY + Math.sin(elapsed * leaf.userData.floatSpeed + leaf.userData.floatPhase) * 0.08;
+    leaf.rotation.z += 0.002 + index * 0.0001;
+  });
+  entryRenderer.render(entryScene, entryCamera);
+}
+
+function getGestureMetrics() {
+  const points = [...activePointers.values()];
+  if (points.length < 2) return null;
+  const [a, b] = points;
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  return {
+    distance: Math.hypot(dx, dy),
+    angle: Math.atan2(dy, dx),
+  };
+}
+
+function beginTwoFingerGesture() {
+  const metrics = getGestureMetrics();
+  if (!metrics) return;
+  gestureStartDistance = metrics.distance;
+  gestureStartAngle = metrics.angle;
+  gestureStartZoom = targetZoom;
+  gestureStartRotationZ = targetRotation.z;
+}
+
+function moveToScene(offset) {
+  const activeButton = buttons.find((button) => button.classList.contains("is-active"));
+  const current = activeButton ? Number(activeButton.dataset.key) : 0;
+  const next = ((current + offset + 5) % 6) + 1;
+  playScene(String(next));
+}
+
+function maybeSwipeToScene(endX, endY) {
+  if (gestureHadMultiplePointers) return;
+  const dx = endX - swipeStartX;
+  const dy = endY - swipeStartY;
+  const elapsed = performance.now() - swipeStartTime;
+  if (elapsed > 520 || Math.abs(dx) < 76 || Math.abs(dx) < Math.abs(dy) * 1.6) return;
+  moveToScene(dx < 0 ? 1 : -1);
+}
+
+function setGestureReadout(name, status) {
+  gestureName.textContent = name;
+  gestureStatus.textContent = status;
+}
+
+function setActiveGestureGuide(label) {
+  gestureGuideItems.forEach((item) => {
+    item.classList.toggle("is-active", item.dataset.gestureGuide === label);
+  });
+}
+
+function canRunGestureAction(label, now) {
+  if (label !== lastGestureLabel) {
+    lastGestureLabel = label;
+    lastGestureActionAt = 0;
+  }
+  if (now - lastGestureActionAt < 1000) return false;
+  lastGestureActionAt = now;
+  return true;
+}
+
+function getHandCenter(landmarks) {
+  if (!landmarks?.length) return null;
+  const sum = landmarks.reduce(
+    (total, point) => {
+      total.x += point.x;
+      total.y += point.y;
+      return total;
+    },
+    { x: 0, y: 0 },
+  );
+  return {
+    x: sum.x / landmarks.length,
+    y: sum.y / landmarks.length,
+  };
+}
+
+function sceneFromHandPosition(landmarks) {
+  const center = getHandCenter(landmarks);
+  if (!center) return null;
+  const mirroredX = 1 - center.x;
+  return String(THREE.MathUtils.clamp(Math.floor(mirroredX * 6) + 1, 1, 6));
+}
+
+function drawGestureOverlay(landmarks, selectedKey) {
+  const context = gestureCanvas.getContext("2d");
+  const width = gestureCanvas.width;
+  const height = gestureCanvas.height;
+  context.clearRect(0, 0, width, height);
+
+  context.strokeStyle = "rgba(238, 242, 238, 0.32)";
+  context.lineWidth = 1;
+  for (let i = 1; i < 6; i += 1) {
+    const x = (i / 6) * width;
+    context.beginPath();
+    context.moveTo(x, 0);
+    context.lineTo(x, height);
+    context.stroke();
+  }
+
+  if (!landmarks?.length) return;
+  context.fillStyle = "rgba(214, 75, 70, 0.96)";
+  landmarks.forEach((point) => {
+    context.beginPath();
+    context.arc((1 - point.x) * width, point.y * height, 3.2, 0, Math.PI * 2);
+    context.fill();
+  });
+
+  if (!selectedKey) return;
+  context.fillStyle = "rgba(214, 75, 70, 0.28)";
+  context.fillRect(((Number(selectedKey) - 1) / 6) * width, 0, width / 6, height);
+}
+
+function handleGestureResult(result, now) {
+  const gesture = result.gestures?.[0]?.[0];
+  const landmarks = result.landmarks?.[0];
+  const label = gesture?.categoryName || "None";
+  const score = gesture?.score || 0;
+  let selectedKey = null;
+
+  if (entryActive) {
+    if (!gesture || score < 0.62) {
+      entryGestureStatus.textContent = entryFistPrimed ? "松开手指即可进入" : "把手放入画面中央";
+      return;
+    }
+    if (label === "Closed_Fist") {
+      entryFistPrimed = true;
+      entryGestureStatus.textContent = "已识别握拳，松开手指进入";
+      return;
+    }
+    if (entryFistPrimed && (label === "Open_Palm" || label === "Pointing_Up")) {
+      entryGestureStatus.textContent = "正在进入观察台";
+      enterObservatory(entryLeafObjects[7] || null);
+      return;
+    }
+    entryGestureStatus.textContent = "请先握拳，再松开手指";
+    return;
+  }
+
+  if (!gesture || score < 0.62) {
+    drawGestureOverlay(landmarks, null);
+    setActiveGestureGuide("");
+    setGestureReadout("识别中", "把手放入画面中央");
+    return;
+  }
+
+  if (label === "Pointing_Up") {
+    setActiveGestureGuide(label);
+    selectedKey = sceneFromHandPosition(landmarks);
+    drawGestureOverlay(landmarks, selectedKey);
+    setGestureReadout("指向选择", `当前指向观察点 ${selectedKey}`);
+    if (selectedKey && canRunGestureAction(`${label}-${selectedKey}`, now)) {
+      playScene(selectedKey);
+    }
+    return;
+  }
+
+  drawGestureOverlay(landmarks, null);
+
+  if (label === "Thumb_Up") {
+    setActiveGestureGuide(label);
+    setGestureReadout("下一项", "拇指向上切换到下一个观察点");
+    if (canRunGestureAction(label, now)) moveToScene(1);
+    return;
+  }
+
+  if (label === "Thumb_Down") {
+    setActiveGestureGuide(label);
+    setGestureReadout("上一项", "拇指向下切换到上一个观察点");
+    if (canRunGestureAction(label, now)) moveToScene(-1);
+    return;
+  }
+
+  if (label === "Closed_Fist") {
+    setActiveGestureGuide(label);
+    setGestureReadout("回到待观察", "握拳回到完整模型视角");
+    if (canRunGestureAction(label, now)) setIdle();
+    return;
+  }
+
+  setActiveGestureGuide("");
+  setGestureReadout(label, "保持指向、点赞、倒赞或握拳可控制页面");
+}
+
+async function loadGestureRecognizer() {
+  if (gestureRecognizer) return gestureRecognizer;
+  setGestureReadout("正在加载", "首次加载手势模型会稍慢");
+  const visionUrl = `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${VISION_VERSION}/vision_bundle.mjs`;
+  const { FilesetResolver, GestureRecognizer } = await import(visionUrl);
+  const vision = await FilesetResolver.forVisionTasks(
+    `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${VISION_VERSION}/wasm`,
+  );
+  const options = {
+    baseOptions: {
+      modelAssetPath: GESTURE_MODEL_URL,
+    },
+    runningMode: "VIDEO",
+    numHands: 1,
+  };
+  try {
+    gestureRecognizer = await GestureRecognizer.createFromOptions(vision, {
+      ...options,
+      baseOptions: {
+        ...options.baseOptions,
+        delegate: "GPU",
+      },
+    });
+  } catch {
+    gestureRecognizer = await GestureRecognizer.createFromOptions(vision, options);
+  }
+  return gestureRecognizer;
+}
+
+async function startGestureControl() {
+  gesturePanel.classList.add("is-active");
+  gesturePanel.setAttribute("aria-hidden", "false");
+  gestureToggle.classList.add("is-active");
+  gestureToggle.textContent = "关闭手势";
+  entryGestureButton.textContent = "关闭手势进入";
+  try {
+    if (!navigator.mediaDevices?.getUserMedia) {
+      throw new Error("Camera API is unavailable.");
+    }
+    const recognizer = await loadGestureRecognizer();
+    gestureStream = await navigator.mediaDevices.getUserMedia({
+      video: {
+        facingMode: "user",
+        width: { ideal: 640 },
+        height: { ideal: 480 },
+      },
+      audio: false,
+    });
+    gestureVideo.srcObject = gestureStream;
+    await gestureVideo.play();
+    gestureCanvas.width = gestureVideo.videoWidth || 640;
+    gestureCanvas.height = gestureVideo.videoHeight || 480;
+    gestureRunning = true;
+    setGestureReadout("手势已开启", "用手指横向选择 1-6");
+    entryGestureStatus.textContent = "请握拳，然后松开手指进入";
+
+    const detect = () => {
+      if (!gestureRunning) return;
+      const now = performance.now();
+      if (gestureVideo.currentTime !== lastGestureVideoTime) {
+        lastGestureVideoTime = gestureVideo.currentTime;
+        const result = recognizer.recognizeForVideo(gestureVideo, now);
+        handleGestureResult(result, now);
+      }
+      gestureLoopId = requestAnimationFrame(detect);
+    };
+    detect();
+  } catch (error) {
+    console.error(error);
+    gestureRunning = false;
+    window.cancelAnimationFrame(gestureLoopId);
+    gestureStream?.getTracks().forEach((track) => track.stop());
+    gestureStream = null;
+    gestureVideo.srcObject = null;
+    gestureToggle.textContent = "重试手势";
+    entryGestureButton.textContent = "重试手势进入";
+    setGestureReadout("手势不可用", "需要浏览器允许摄像头权限");
+    entryGestureStatus.textContent = "需要允许摄像头权限";
+  }
+}
+
+function stopGestureControl() {
+  gestureRunning = false;
+  window.cancelAnimationFrame(gestureLoopId);
+  gestureStream?.getTracks().forEach((track) => track.stop());
+  gestureStream = null;
+  gestureVideo.srcObject = null;
+  gesturePanel.classList.remove("is-active");
+  gesturePanel.setAttribute("aria-hidden", "true");
+  gestureToggle.classList.remove("is-active");
+  gestureToggle.textContent = "开启摄像头手势";
+  entryGestureButton.textContent = "开启手势进入";
+  entryGestureStatus.textContent = "手势入口待机";
+  entryFistPrimed = false;
+  lastGestureLabel = "";
+  lastGestureActionAt = 0;
+  setActiveGestureGuide("");
+  const context = gestureCanvas.getContext("2d");
+  context?.clearRect(0, 0, gestureCanvas.width, gestureCanvas.height);
 }
 
 function setIdle() {
@@ -301,33 +802,7 @@ function tintModel(root) {
     child.castShadow = true;
     child.receiveShadow = true;
     child.material = paleGold.clone();
-    addLedEdges(child);
   });
-}
-
-function addLedEdges(mesh) {
-  const edges = new THREE.EdgesGeometry(mesh.geometry, 34);
-  const material = new THREE.LineBasicMaterial({
-    color: 0xffffff,
-    transparent: true,
-    opacity: 0.92,
-    depthTest: false,
-  });
-  const line = new THREE.LineSegments(edges, material);
-  line.renderOrder = 40;
-  line.scale.setScalar(1.003);
-  mesh.add(line);
-
-  const glowMaterial = new THREE.LineBasicMaterial({
-    color: 0xffffff,
-    transparent: true,
-    opacity: 0.32,
-    depthTest: false,
-  });
-  const glow = new THREE.LineSegments(edges.clone(), glowMaterial);
-  glow.renderOrder = 39;
-  glow.scale.setScalar(1.012);
-  mesh.add(glow);
 }
 
 function frameModel(root) {
@@ -438,6 +913,66 @@ function playReliefVideo() {
   reliefVideo.load();
 }
 
+function createOverlayMaterial(texture, overlay) {
+  if (overlay.whiteMask) {
+    return new THREE.ShaderMaterial({
+      uniforms: {
+        map: { value: texture },
+        opacity: { value: overlay.opacity },
+      },
+      vertexShader: `
+        varying vec2 vUv;
+
+        void main() {
+          vUv = uv;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        uniform sampler2D map;
+        uniform float opacity;
+        varying vec2 vUv;
+
+        void main() {
+          vec4 sampleColor = texture2D(map, vUv);
+          float luminance = dot(sampleColor.rgb, vec3(0.299, 0.587, 0.114));
+          float alpha = max(sampleColor.a, luminance) * opacity;
+          if (alpha < 0.02) discard;
+          gl_FragColor = vec4(vec3(1.0), alpha);
+        }
+      `,
+      transparent: true,
+      depthTest: false,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    });
+  }
+
+  return new THREE.MeshBasicMaterial({
+    map: texture,
+    transparent: true,
+    opacity: overlay.opacity,
+    depthTest: false,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+  });
+}
+
+function createImageOverlay(loader, overlay, file, assetPrefix) {
+  loader.load(`${assetPrefix}line-overlays/${file}`, (texture) => {
+    texture.colorSpace = THREE.SRGBColorSpace;
+    texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+    const material = createOverlayMaterial(texture, overlay);
+    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(overlay.width, overlay.height), material);
+    mesh.name = overlay.name;
+    mesh.position.set(...overlay.position);
+    mesh.renderOrder = 55;
+    const activeName = app.dataset.scene === "foil" ? "outline" : app.dataset.scene;
+    mesh.visible = mesh.name === activeName;
+    lineOverlayRoot.add(mesh);
+  });
+}
+
 function createLineOverlays() {
   if (!lineOverlayRoot) return;
   lineOverlayRoot.clear();
@@ -457,7 +992,9 @@ function createLineOverlays() {
     {
       name: "relief",
       file: "relief.webm",
+      fallbackFile: "relief.png",
       type: "video",
+      whiteMask: true,
       width: 3.12 * overlayScale,
       height: 2.55 * overlayScale,
       position: [0, 0.15, 0.185],
@@ -499,14 +1036,7 @@ function createLineOverlays() {
       texture.minFilter = THREE.LinearFilter;
       texture.magFilter = THREE.LinearFilter;
 
-      const material = new THREE.MeshBasicMaterial({
-        map: texture,
-        transparent: true,
-        opacity: overlay.opacity,
-        depthTest: false,
-        depthWrite: false,
-        side: THREE.DoubleSide,
-      });
+      const material = createOverlayMaterial(texture, overlay);
       const mesh = new THREE.Mesh(new THREE.PlaneGeometry(overlay.width, overlay.height), material);
       mesh.name = overlay.name;
       mesh.position.set(...overlay.position);
@@ -514,6 +1044,12 @@ function createLineOverlays() {
       mesh.visible = app.dataset.scene === mesh.name;
       lineOverlayRoot.add(mesh);
       reliefVideo = video;
+      video.addEventListener("error", () => {
+        mesh.visible = false;
+        if (overlay.fallbackFile) {
+          createImageOverlay(loader, overlay, overlay.fallbackFile, assetPrefix);
+        }
+      }, { once: true });
       video.load();
       if (mesh.visible) {
         playReliefVideo();
@@ -521,25 +1057,7 @@ function createLineOverlays() {
       return;
     }
 
-    loader.load(`${assetPrefix}line-overlays/${overlay.file}`, (texture) => {
-      texture.colorSpace = THREE.SRGBColorSpace;
-      texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
-      const material = new THREE.MeshBasicMaterial({
-        map: texture,
-        transparent: true,
-        opacity: overlay.opacity,
-        depthTest: false,
-        depthWrite: false,
-        side: THREE.DoubleSide,
-      });
-      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(overlay.width, overlay.height), material);
-      mesh.name = overlay.name;
-      mesh.position.set(...overlay.position);
-      mesh.renderOrder = 55;
-      const activeName = app.dataset.scene === "foil" ? "outline" : app.dataset.scene;
-      mesh.visible = mesh.name === activeName;
-      lineOverlayRoot.add(mesh);
-    });
+    createImageOverlay(loader, overlay, overlay.file, assetPrefix);
   });
 }
 
@@ -762,6 +1280,8 @@ function resizeRenderer() {
 
 function animate() {
   requestAnimationFrame(animate);
+  const elapsed = entryClock.getElapsedTime();
+  animateEntryScene(elapsed);
   currentRotation.x = THREE.MathUtils.lerp(currentRotation.x, targetRotation.x, 0.085);
   currentRotation.y = THREE.MathUtils.lerp(currentRotation.y, targetRotation.y, 0.085);
   currentRotation.z = THREE.MathUtils.lerp(currentRotation.z, targetRotation.z, 0.085);
@@ -780,19 +1300,56 @@ buttons.forEach((button) => {
   button.addEventListener("click", () => playScene(button.dataset.key));
 });
 
+entryCanvas.addEventListener("click", (event) => {
+  const leaf = pickEntryLeaf(event);
+  if (leaf) enterObservatory(leaf);
+});
+
+entryGestureButton.addEventListener("click", () => {
+  if (gestureRunning || gestureStream) {
+    stopGestureControl();
+    return;
+  }
+  startGestureControl();
+});
+
 window.addEventListener("keydown", (event) => {
   if (event.repeat) return;
   playScene(event.key);
 });
 
 modelStage.addEventListener("pointerdown", (event) => {
+  activePointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+  if (activePointers.size === 1) {
+    gestureHadMultiplePointers = false;
+  }
   isDragging = true;
   startX = event.clientX;
   startY = event.clientY;
+  swipeStartX = event.clientX;
+  swipeStartY = event.clientY;
+  swipeStartTime = performance.now();
   modelStage.setPointerCapture(event.pointerId);
+  if (activePointers.size === 2) {
+    gestureHadMultiplePointers = true;
+    beginTwoFingerGesture();
+  }
 });
 
 modelStage.addEventListener("pointermove", (event) => {
+  if (!activePointers.has(event.pointerId)) return;
+  activePointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+
+  if (activePointers.size >= 2) {
+    const metrics = getGestureMetrics();
+    if (!metrics || !gestureStartDistance) return;
+    const zoomRatio = metrics.distance / gestureStartDistance;
+    const angleDelta = metrics.angle - gestureStartAngle;
+    targetZoom = THREE.MathUtils.clamp(gestureStartZoom * zoomRatio, 0.82, 1.42);
+    targetRotation.z = THREE.MathUtils.clamp(gestureStartRotationZ + angleDelta * 0.55, -0.38, 0.38);
+    return;
+  }
+
   if (!isDragging) return;
 
   const dx = event.clientX - startX;
@@ -805,17 +1362,54 @@ modelStage.addEventListener("pointermove", (event) => {
 });
 
 modelStage.addEventListener("pointerup", (event) => {
-  isDragging = false;
-  modelStage.releasePointerCapture(event.pointerId);
+  const endedPointer = activePointers.get(event.pointerId);
+  activePointers.delete(event.pointerId);
+  if (endedPointer && activePointers.size === 0) {
+    maybeSwipeToScene(event.clientX, event.clientY);
+  }
+  isDragging = activePointers.size > 0;
+  if (activePointers.size === 1) {
+    const [remaining] = activePointers.values();
+    startX = remaining.x;
+    startY = remaining.y;
+  }
+  if (activePointers.size === 2) {
+    gestureHadMultiplePointers = true;
+    beginTwoFingerGesture();
+  }
+  if (modelStage.hasPointerCapture(event.pointerId)) {
+    modelStage.releasePointerCapture(event.pointerId);
+  }
 });
 
 modelStage.addEventListener("pointercancel", () => {
+  activePointers.clear();
   isDragging = false;
+  gestureHadMultiplePointers = false;
 });
 
 resetButton.addEventListener("click", resetObservation);
-window.addEventListener("resize", resizeRenderer);
+inspectorToggle.addEventListener("click", () => {
+  setPanelState("inspector", app.dataset.inspector === "closed");
+});
+knowledgeToggle.addEventListener("click", () => {
+  setPanelState("knowledge", app.dataset.knowledge === "closed");
+});
+gestureToggle.addEventListener("click", () => {
+  if (gestureRunning || gestureStream) {
+    stopGestureControl();
+    return;
+  }
+  startGestureControl();
+});
+window.addEventListener("resize", () => {
+  resizeRenderer();
+  resizeEntryRenderer();
+});
 
+initEntryRenderer();
 initRenderer();
 setIdle();
 updateProgress();
+setPanelState("inspector", false);
+setPanelState("knowledge", false);

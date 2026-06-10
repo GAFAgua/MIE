@@ -10,7 +10,7 @@
     <link rel="preload" href="assets/line-overlays/relief.webm" as="video" type="video/webm" />
     <link rel="preload" href="assets/line-overlays/ram.png" as="image" />
     <link rel="preload" href="assets/line-overlays/symmetry.png" as="image" />
-    <link rel="stylesheet" href="styles.css?v=relief-video-1" />
+    <link rel="stylesheet" href="styles.css?v=model-entry-1" />
     <script type="importmap">
       {
         "imports": {
@@ -20,7 +20,19 @@
     </script>
   </head>
   <body>
-    <main class="app" data-scene="idle" data-report="closed">
+    <main class="app" data-scene="idle" data-report="closed" data-inspector="closed" data-knowledge="closed" data-entry="closed">
+      <section class="entry" id="entryScreen" aria-label="金叶入口">
+        <canvas id="entryCanvas" aria-label="八片金叶粒子宇宙入口"></canvas>
+        <div class="entry-copy">
+          <p class="eyebrow">MIE DIGITAL RELIC OBSERVATORY</p>
+          <h1>羊头纹杏形金叶</h1>
+          <p>点击任意金叶放大进入观察台，或开启摄像头后握拳再松开手指进入。</p>
+          <div class="entry-actions">
+            <button class="entry-secondary" type="button" id="entryGestureButton">开启手势进入</button>
+          </div>
+          <span id="entryGestureStatus">手势入口待机</span>
+        </div>
+      </section>
       <section class="desk" aria-label="羊头纹杏形金叶 3D观察台">
         <header class="topbar">
           <div>
@@ -32,6 +44,7 @@
             <div class="progress-track" aria-hidden="true">
               <span id="progressFill"></span>
             </div>
+            <button class="panel-toggle" type="button" id="inspectorToggle" aria-expanded="false" aria-controls="inspectorPanel">展开观察清单</button>
           </div>
         </header>
 
@@ -89,6 +102,36 @@
                 <strong id="hudTitle">待观察</strong>
                 <p id="hudText">选择右侧词条，系统将在模型表面显示对应识别线、采样点和结构说明。</p>
               </div>
+              <div class="gesture-panel" id="gesturePanel" aria-hidden="true">
+                <video id="gestureVideo" playsinline muted></video>
+                <canvas id="gestureCanvas"></canvas>
+                <div class="gesture-readout">
+                  <strong id="gestureName">手势待机</strong>
+                  <span id="gestureStatus">点击开启后使用摄像头识别手势</span>
+                </div>
+                <div class="gesture-guide" aria-label="手势控制说明">
+                  <div data-gesture-guide="Pointing_Up">
+                    <b>食指</b>
+                    <span>食指指向</span>
+                    <em>左右移动选择 1-6</em>
+                  </div>
+                  <div data-gesture-guide="Thumb_Up">
+                    <b>上</b>
+                    <span>拇指向上</span>
+                    <em>下一个观察点</em>
+                  </div>
+                  <div data-gesture-guide="Thumb_Down">
+                    <b>下</b>
+                    <span>拇指向下</span>
+                    <em>上一个观察点</em>
+                  </div>
+                  <div data-gesture-guide="Closed_Fist">
+                    <b>拳</b>
+                    <span>握拳</span>
+                    <em>回到完整模型</em>
+                  </div>
+                </div>
+              </div>
               <div class="model-loading" id="modelLoading">
                 <strong>正在加载 3D 模型</strong>
                 <span id="modelLoadingDetail">先显示文物预览，模型加载完成后自动切换</span>
@@ -101,7 +144,7 @@
             </div>
           </section>
 
-          <aside class="inspector" aria-label="观察清单">
+          <aside class="inspector" id="inspectorPanel" aria-label="观察清单">
             <div class="scene-card">
               <p class="scene-kicker" id="sceneKicker">OBSERVATION DESK</p>
               <h2 id="sceneTitle">白底 3D 金叶观察台</h2>
@@ -112,6 +155,7 @@
               <p>观察点</p>
               <strong id="detailFeature">完整金叶</strong>
               <span id="detailTranslate">当前为待观察状态，模型可拖动旋转。</span>
+              <button class="gesture-toggle" type="button" id="gestureToggle">开启摄像头手势</button>
             </div>
 
             <nav class="controls" aria-label="六个观察点">
@@ -149,7 +193,11 @@
           </aside>
         </div>
 
-        <section class="knowledge" aria-label="文物资料信息">
+        <div class="knowledge-toolbar">
+          <button class="panel-toggle" type="button" id="knowledgeToggle" aria-expanded="false" aria-controls="knowledgePanel">展开文物资料</button>
+        </div>
+
+        <section class="knowledge" id="knowledgePanel" aria-label="文物资料信息">
           <article>
             <h3>文物特征</h3>
             <p>该文物为西汉时期金器，由八块杏形金薄片组成，原缀于南越王玉衣面罩的丝巾之上。金片图案为两个尖角羊头纹，羊头两两相背，纹饰含有草原文化因素。</p>
@@ -180,6 +228,6 @@
       </section>
     </main>
 
-    <script type="module" src="script.js?v=relief-video-1"></script>
+    <script type="module" src="script.js?v=model-entry-1"></script>
   </body>
 </html>
