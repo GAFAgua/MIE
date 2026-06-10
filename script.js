@@ -939,8 +939,9 @@ function createOverlayMaterial(texture, overlay) {
         void main() {
           vec4 sampleColor = texture2D(map, vUv);
           float luminance = dot(sampleColor.rgb, vec3(0.299, 0.587, 0.114));
-          float alpha = max(sampleColor.a, luminance) * opacity;
-          if (alpha < 0.02) discard;
+          float alpha = sampleColor.a > 0.04 ? sampleColor.a : smoothstep(0.62, 0.96, luminance);
+          alpha *= opacity;
+          if (alpha < 0.08) discard;
           gl_FragColor = vec4(vec3(1.0), alpha);
         }
       `,
@@ -1016,10 +1017,12 @@ function createLineOverlays() {
       file: "symmetry.webm",
       fallbackFile: "symmetry.png",
       type: "video",
-      width: 3.2 * overlayScale,
-      height: 1.8 * overlayScale,
-      position: [0, 0.02, 0.19],
-      opacity: 0.95,
+      whiteMask: true,
+      playbackRate: 0.5,
+      width: 4.7 * overlayScale,
+      height: 2.64 * overlayScale,
+      position: [0, 0.05, 0.19],
+      opacity: 1,
     },
   ];
 
@@ -1032,6 +1035,7 @@ function createLineOverlays() {
       video.preload = "auto";
       video.loop = false;
       video.crossOrigin = "anonymous";
+      video.playbackRate = overlay.playbackRate || 1;
       video.addEventListener("ended", () => {
         video.pause();
       });
