@@ -922,6 +922,7 @@ function createOverlayMaterial(texture, overlay) {
       uniforms: {
         map: { value: texture },
         opacity: { value: overlay.opacity },
+        texelSize: { value: new THREE.Vector2(1 / (overlay.sourceWidth || 1920), 1 / (overlay.sourceHeight || 1080)) },
       },
       vertexShader: `
         varying vec2 vUv;
@@ -934,14 +935,26 @@ function createOverlayMaterial(texture, overlay) {
       fragmentShader: `
         uniform sampler2D map;
         uniform float opacity;
+        uniform vec2 texelSize;
         varying vec2 vUv;
 
-        void main() {
-          vec4 sampleColor = texture2D(map, vUv);
+        float maskAlpha(vec2 uv) {
+          vec4 sampleColor = texture2D(map, uv);
           float luminance = dot(sampleColor.rgb, vec3(0.299, 0.587, 0.114));
-          float alpha = sampleColor.a > 0.04 ? sampleColor.a : smoothstep(0.62, 0.96, luminance);
+          return sampleColor.a > 0.04 ? sampleColor.a : smoothstep(0.62, 0.96, luminance);
+        }
+
+        void main() {
+          float center = maskAlpha(vUv);
+          float neighbor =
+            maskAlpha(vUv + vec2(texelSize.x, 0.0)) +
+            maskAlpha(vUv - vec2(texelSize.x, 0.0)) +
+            maskAlpha(vUv + vec2(0.0, texelSize.y)) +
+            maskAlpha(vUv - vec2(0.0, texelSize.y));
+          float connected = smoothstep(0.42, 1.18, neighbor);
+          float alpha = center * connected;
           alpha *= opacity;
-          if (alpha < 0.08) discard;
+          if (alpha < 0.12) discard;
           gl_FragColor = vec4(vec3(1.0), alpha);
         }
       `,
@@ -1019,9 +1032,11 @@ function createLineOverlays() {
       type: "video",
       whiteMask: true,
       playbackRate: 0.5,
-      width: 4.7 * overlayScale,
-      height: 2.64 * overlayScale,
-      position: [0, 0.05, 0.19],
+      sourceWidth: 1920,
+      sourceHeight: 1080,
+      height: 5,
+      width: 5 * (16 / 9),
+      position: [0, -0.25, 0.19],
       opacity: 1,
     },
   ];
