@@ -146,7 +146,7 @@ let annotationRoot;
 let lineOverlayRoot;
 let scanRoot;
 let flowRoot;
-let reliefVideo;
+const overlayVideos = new Map();
 let resetTimer = 0;
 const activePointers = new Map();
 let isDragging = false;
@@ -875,11 +875,13 @@ function setAnnotation(name) {
     lineOverlayRoot.children.forEach((child) => {
       child.visible = child.name === activeName;
     });
-    if (activeName === "relief") {
-      playReliefVideo();
-    } else if (reliefVideo) {
-      reliefVideo.pause();
-    }
+    overlayVideos.forEach((video, key) => {
+      if (key === activeName) {
+        playOverlayVideo(key);
+      } else {
+        video.pause();
+      }
+    });
   }
   if (flowRoot) {
     flowRoot.children.forEach((child) => {
@@ -888,29 +890,30 @@ function setAnnotation(name) {
   }
 }
 
-function playReliefVideo() {
-  if (!reliefVideo) return;
+function playOverlayVideo(name) {
+  const video = overlayVideos.get(name);
+  if (!video) return;
 
   const start = () => {
-    reliefVideo.pause();
+    video.pause();
     try {
-      reliefVideo.currentTime = 0;
+      video.currentTime = 0;
     } catch {
       // Some browsers delay seeking until metadata is available.
     }
-    const playPromise = reliefVideo.play();
+    const playPromise = video.play();
     if (playPromise) {
       playPromise.catch(() => {});
     }
   };
 
-  if (reliefVideo.readyState >= 1) {
+  if (video.readyState >= 1) {
     start();
     return;
   }
 
-  reliefVideo.addEventListener("loadedmetadata", start, { once: true });
-  reliefVideo.load();
+  video.addEventListener("loadedmetadata", start, { once: true });
+  video.load();
 }
 
 function createOverlayMaterial(texture, overlay) {
@@ -1010,11 +1013,13 @@ function createLineOverlays() {
     },
     {
       name: "symmetry",
-      file: "symmetry.png",
-      width: 3.05 * overlayScale,
-      height: 2.25 * overlayScale,
-      position: [0, -0.06, 0.188],
-      opacity: 0.88,
+      file: "symmetry.webm",
+      fallbackFile: "symmetry.png",
+      type: "video",
+      width: 3.2 * overlayScale,
+      height: 1.8 * overlayScale,
+      position: [0, 0.02, 0.19],
+      opacity: 0.95,
     },
   ];
 
@@ -1043,7 +1048,7 @@ function createLineOverlays() {
       mesh.renderOrder = 55;
       mesh.visible = app.dataset.scene === mesh.name;
       lineOverlayRoot.add(mesh);
-      reliefVideo = video;
+      overlayVideos.set(overlay.name, video);
       video.addEventListener("error", () => {
         mesh.visible = false;
         if (overlay.fallbackFile) {
@@ -1052,7 +1057,7 @@ function createLineOverlays() {
       }, { once: true });
       video.load();
       if (mesh.visible) {
-        playReliefVideo();
+        playOverlayVideo(overlay.name);
       }
       return;
     }
