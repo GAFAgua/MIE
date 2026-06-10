@@ -264,7 +264,11 @@ h1 {
 }
 
 .scan-layer {
-  display: none;
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  pointer-events: none;
+  opacity: 1;
 }
 
 .scan-layer::before,
