@@ -4,8 +4,7 @@ import { MeshoptDecoder } from "https://cdn.jsdelivr.net/npm/three@0.165.0/examp
 
 const app = document.querySelector(".app");
 const entryScreen = document.querySelector("#entryScreen");
-const entryLeaves = [...document.querySelectorAll(".entry-leaf")];
-const entryEnterButton = document.querySelector("#entryEnterButton");
+const entryCanvas = document.querySelector("#entryCanvas");
 const entryGestureButton = document.querySelector("#entryGestureButton");
 const entryGestureStatus = document.querySelector("#entryGestureStatus");
 const modelStage = document.querySelector("#modelStage");
@@ -131,6 +130,16 @@ const currentRotation = new THREE.Euler(-0.08, 0.16, 0);
 let renderer;
 let scene;
 let camera;
+let entryRenderer;
+let entryScene;
+let entryCamera;
+let entryParticleRoot;
+let entryLeafRoot;
+let entrySelectedLeaf;
+let entryClock = new THREE.Clock();
+const entryLeafObjects = [];
+const entryRaycaster = new THREE.Raycaster();
+const entryPointer = new THREE.Vector2();
 let relicRoot;
 let modelPivot;
 let annotationRoot;
@@ -209,7 +218,7 @@ function enterObservatory(selectedLeaf = null) {
   if (!entryActive) return;
   entryActive = false;
   entryScreen.classList.add("is-zooming");
-  selectedLeaf?.classList.add("is-selected");
+  entrySelectedLeaf = selectedLeaf;
   window.setTimeout(() => {
     app.dataset.entry = "open";
     resizeRenderer();
@@ -217,6 +226,154 @@ function enterObservatory(selectedLeaf = null) {
   window.setTimeout(() => {
     entryScreen.setAttribute("aria-hidden", "true");
   }, 980);
+}
+
+function createEntryParticles() {
+  const random = seededRandom(20260610);
+  const vertices = [];
+  const colors = [];
+  const color = new THREE.Color();
+  for (let i = 0; i < 1600; i += 1) {
+    const radius = 3.2 + random() * 7.8;
+    const angle = random() * Math.PI * 2;
+    const band = (random() - 0.5) * 2.1;
+    vertices.push(Math.cos(angle) * radius, band + Math.sin(angle * 1.7) * 0.28, Math.sin(angle) * radius - 2.8);
+    const tone = 0.38 + random() * 0.42;
+    color.setRGB(tone, tone, tone * 0.92);
+    colors.push(color.r, color.g, color.b);
+  }
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute("position", new THREE.Float32BufferAttribute(vertices, 3));
+  geometry.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
+  const material = new THREE.PointsMaterial({
+    size: 0.018,
+    vertexColors: true,
+    transparent: true,
+    opacity: 0.72,
+    depthWrite: false,
+  });
+  entryParticleRoot = new THREE.Points(geometry, material);
+  entryScene.add(entryParticleRoot);
+}
+
+function makeEntryLeaf(source, config) {
+  const leaf = source.clone(true);
+  leaf.traverse((child) => {
+    if (!child.isMesh) return;
+    child.material = new THREE.MeshStandardMaterial({
+      color: 0xbf9000,
+      metalness: 0.5,
+      roughness: 0.46,
+    });
+  });
+
+  const box = new THREE.Box3().setFromObject(leaf);
+  const center = box.getCenter(new THREE.Vector3());
+  const size = box.getSize(new THREE.Vector3());
+  leaf.position.sub(center);
+  leaf.scale.setScalar(config.scale / Math.max(size.x, size.y, size.z));
+  leaf.rotation.set(config.rotation[0], MODEL_FRONT_OFFSET_Y + config.rotation[1], config.rotation[2]);
+
+  const group = new THREE.Group();
+  group.position.set(config.position[0], config.position[1], config.position[2]);
+  group.add(leaf);
+  group.userData.baseY = config.position[1];
+  group.userData.floatSpeed = config.floatSpeed;
+  group.userData.floatPhase = config.floatPhase;
+  group.userData.entryLeaf = true;
+  entryLeafRoot.add(group);
+  entryLeafObjects.push(group);
+}
+
+function loadEntryLeaves() {
+  const loader = new GLTFLoader();
+  loader.setMeshoptDecoder(MeshoptDecoder);
+  const configs = [
+    { position: [-3.6, 1.35, -2.4], scale: 1.08, rotation: [-0.12, -0.35, 0.18], floatSpeed: 0.7, floatPhase: 0.2 },
+    { position: [-1.35, 2.0, -3.1], scale: 0.88, rotation: [-0.05, 0.18, -0.12], floatSpeed: 0.84, floatPhase: 1.4 },
+    { position: [1.52, 1.65, -2.7], scale: 1.02, rotation: [-0.16, -0.18, 0.08], floatSpeed: 0.76, floatPhase: 2.1 },
+    { position: [3.65, 0.38, -3.2], scale: 0.82, rotation: [-0.08, 0.32, -0.18], floatSpeed: 0.92, floatPhase: 3.0 },
+    { position: [2.6, -1.58, -2.45], scale: 0.94, rotation: [-0.18, -0.28, 0.2], floatSpeed: 0.74, floatPhase: 4.3 },
+    { position: [0.0, -2.0, -2.9], scale: 1.06, rotation: [-0.06, 0.1, -0.06], floatSpeed: 0.82, floatPhase: 5.2 },
+    { position: [-2.62, -1.45, -2.5], scale: 0.9, rotation: [-0.14, 0.24, 0.16], floatSpeed: 0.78, floatPhase: 6.1 },
+    { position: [0.02, -0.12, -1.85], scale: 1.34, rotation: [-0.1, 0, 0], floatSpeed: 0.68, floatPhase: 2.8 },
+  ];
+
+  loader.load(canvas.dataset.model, (gltf) => {
+    configs.forEach((config) => makeEntryLeaf(gltf.scene, config));
+  });
+}
+
+function initEntryRenderer() {
+  entryScene = new THREE.Scene();
+  entryCamera = new THREE.PerspectiveCamera(38, 1, 0.1, 100);
+  entryCamera.position.set(0, 0, 5.9);
+  entryRenderer = new THREE.WebGLRenderer({ canvas: entryCanvas, antialias: true, alpha: true });
+  entryRenderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.8));
+  entryRenderer.outputColorSpace = THREE.SRGBColorSpace;
+  entryRenderer.toneMapping = THREE.ACESFilmicToneMapping;
+  entryRenderer.toneMappingExposure = 0.92;
+
+  entryScene.add(new THREE.HemisphereLight(0xf5f5f2, 0x151515, 1.1));
+  const key = new THREE.DirectionalLight(0xffffff, 2.2);
+  key.position.set(-2.8, 3.2, 4.8);
+  entryScene.add(key);
+  const rim = new THREE.DirectionalLight(0xd7d2bd, 1.1);
+  rim.position.set(3.5, -0.8, -2.4);
+  entryScene.add(rim);
+
+  entryLeafRoot = new THREE.Group();
+  entryScene.add(entryLeafRoot);
+  createEntryParticles();
+  loadEntryLeaves();
+  resizeEntryRenderer();
+}
+
+function resizeEntryRenderer() {
+  if (!entryRenderer) return;
+  const width = Math.max(320, entryScreen.clientWidth);
+  const height = Math.max(320, entryScreen.clientHeight);
+  entryRenderer.setSize(width, height, false);
+  entryCamera.aspect = width / height;
+  entryCamera.updateProjectionMatrix();
+}
+
+function pickEntryLeaf(event) {
+  if (!entryActive || !entryLeafObjects.length) return null;
+  const rect = entryCanvas.getBoundingClientRect();
+  entryPointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+  entryPointer.y = -(((event.clientY - rect.top) / rect.height) * 2 - 1);
+  entryRaycaster.setFromCamera(entryPointer, entryCamera);
+  const hits = entryRaycaster.intersectObjects(entryLeafObjects, true);
+  if (!hits.length) return null;
+  let target = hits[0].object;
+  while (target && !target.userData.entryLeaf) {
+    target = target.parent;
+  }
+  return target;
+}
+
+function animateEntryScene(elapsed) {
+  if (!entryRenderer) return;
+  if (entryParticleRoot) {
+    entryParticleRoot.rotation.y = elapsed * 0.018;
+    entryParticleRoot.rotation.z = Math.sin(elapsed * 0.08) * 0.03;
+  }
+  entryLeafObjects.forEach((leaf, index) => {
+    if (leaf === entrySelectedLeaf) {
+      leaf.position.lerp(new THREE.Vector3(0, 0, 2.55), 0.08);
+      leaf.scale.lerp(new THREE.Vector3(7.8, 7.8, 7.8), 0.08);
+      leaf.rotation.z += 0.018;
+      return;
+    }
+    if (!entryActive) {
+      leaf.scale.lerp(new THREE.Vector3(0.05, 0.05, 0.05), 0.08);
+      return;
+    }
+    leaf.position.y = leaf.userData.baseY + Math.sin(elapsed * leaf.userData.floatSpeed + leaf.userData.floatPhase) * 0.08;
+    leaf.rotation.z += 0.002 + index * 0.0001;
+  });
+  entryRenderer.render(entryScene, entryCamera);
 }
 
 function getGestureMetrics() {
@@ -348,7 +505,7 @@ function handleGestureResult(result, now) {
     }
     if (entryFistPrimed && (label === "Open_Palm" || label === "Pointing_Up")) {
       entryGestureStatus.textContent = "正在进入观察台";
-      enterObservatory(entryLeaves[7]);
+      enterObservatory(entryLeafObjects[7] || null);
       return;
     }
     entryGestureStatus.textContent = "请先握拳，再松开手指";
@@ -1123,6 +1280,8 @@ function resizeRenderer() {
 
 function animate() {
   requestAnimationFrame(animate);
+  const elapsed = entryClock.getElapsedTime();
+  animateEntryScene(elapsed);
   currentRotation.x = THREE.MathUtils.lerp(currentRotation.x, targetRotation.x, 0.085);
   currentRotation.y = THREE.MathUtils.lerp(currentRotation.y, targetRotation.y, 0.085);
   currentRotation.z = THREE.MathUtils.lerp(currentRotation.z, targetRotation.z, 0.085);
@@ -1141,11 +1300,10 @@ buttons.forEach((button) => {
   button.addEventListener("click", () => playScene(button.dataset.key));
 });
 
-entryLeaves.forEach((leaf) => {
-  leaf.addEventListener("click", () => enterObservatory(leaf));
+entryCanvas.addEventListener("click", (event) => {
+  const leaf = pickEntryLeaf(event);
+  if (leaf) enterObservatory(leaf);
 });
-
-entryEnterButton.addEventListener("click", () => enterObservatory(entryLeaves[7]));
 
 entryGestureButton.addEventListener("click", () => {
   if (gestureRunning || gestureStream) {
@@ -1244,8 +1402,12 @@ gestureToggle.addEventListener("click", () => {
   }
   startGestureControl();
 });
-window.addEventListener("resize", resizeRenderer);
+window.addEventListener("resize", () => {
+  resizeRenderer();
+  resizeEntryRenderer();
+});
 
+initEntryRenderer();
 initRenderer();
 setIdle();
 updateProgress();
