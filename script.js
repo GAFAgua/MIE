@@ -30,6 +30,7 @@ const gestureVideo = document.querySelector("#gestureVideo");
 const gestureCanvas = document.querySelector("#gestureCanvas");
 const gestureName = document.querySelector("#gestureName");
 const gestureStatus = document.querySelector("#gestureStatus");
+const gestureGuideItems = [...document.querySelectorAll("[data-gesture-guide]")];
 
 const scenes = {
   1: {
@@ -224,6 +225,12 @@ function setGestureReadout(name, status) {
   gestureStatus.textContent = status;
 }
 
+function setActiveGestureGuide(label) {
+  gestureGuideItems.forEach((item) => {
+    item.classList.toggle("is-active", item.dataset.gestureGuide === label);
+  });
+}
+
 function canRunGestureAction(label, now) {
   if (label !== lastGestureLabel) {
     lastGestureLabel = label;
@@ -295,11 +302,13 @@ function handleGestureResult(result, now) {
 
   if (!gesture || score < 0.62) {
     drawGestureOverlay(landmarks, null);
+    setActiveGestureGuide("");
     setGestureReadout("识别中", "把手放入画面中央");
     return;
   }
 
   if (label === "Pointing_Up") {
+    setActiveGestureGuide(label);
     selectedKey = sceneFromHandPosition(landmarks);
     drawGestureOverlay(landmarks, selectedKey);
     setGestureReadout("指向选择", `当前指向观察点 ${selectedKey}`);
@@ -312,23 +321,27 @@ function handleGestureResult(result, now) {
   drawGestureOverlay(landmarks, null);
 
   if (label === "Thumb_Up") {
+    setActiveGestureGuide(label);
     setGestureReadout("下一项", "拇指向上切换到下一个观察点");
     if (canRunGestureAction(label, now)) moveToScene(1);
     return;
   }
 
   if (label === "Thumb_Down") {
+    setActiveGestureGuide(label);
     setGestureReadout("上一项", "拇指向下切换到上一个观察点");
     if (canRunGestureAction(label, now)) moveToScene(-1);
     return;
   }
 
   if (label === "Closed_Fist") {
+    setActiveGestureGuide(label);
     setGestureReadout("回到待观察", "握拳回到完整模型视角");
     if (canRunGestureAction(label, now)) setIdle();
     return;
   }
 
+  setActiveGestureGuide("");
   setGestureReadout(label, "保持指向、点赞、倒赞或握拳可控制页面");
 }
 
@@ -421,6 +434,7 @@ function stopGestureControl() {
   gestureToggle.textContent = "开启摄像头手势";
   lastGestureLabel = "";
   lastGestureActionAt = 0;
+  setActiveGestureGuide("");
   const context = gestureCanvas.getContext("2d");
   context?.clearRect(0, 0, gestureCanvas.width, gestureCanvas.height);
 }

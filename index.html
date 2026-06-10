@@ -10,7 +10,7 @@
     <link rel="preload" href="assets/line-overlays/relief.webm" as="video" type="video/webm" />
     <link rel="preload" href="assets/line-overlays/ram.png" as="image" />
     <link rel="preload" href="assets/line-overlays/symmetry.png" as="image" />
-    <link rel="stylesheet" href="styles.css?v=camera-gesture-1" />
+    <link rel="stylesheet" href="styles.css?v=gesture-guide-1" />
     <script type="importmap">
       {
         "imports": {
@@ -95,6 +95,28 @@
                 <div class="gesture-readout">
                   <strong id="gestureName">手势待机</strong>
                   <span id="gestureStatus">点击开启后使用摄像头识别手势</span>
+                </div>
+                <div class="gesture-guide" aria-label="手势控制说明">
+                  <div data-gesture-guide="Pointing_Up">
+                    <b>食指</b>
+                    <span>食指指向</span>
+                    <em>左右移动选择 1-6</em>
+                  </div>
+                  <div data-gesture-guide="Thumb_Up">
+                    <b>上</b>
+                    <span>拇指向上</span>
+                    <em>下一个观察点</em>
+                  </div>
+                  <div data-gesture-guide="Thumb_Down">
+                    <b>下</b>
+                    <span>拇指向下</span>
+                    <em>上一个观察点</em>
+                  </div>
+                  <div data-gesture-guide="Closed_Fist">
+                    <b>拳</b>
+                    <span>握拳</span>
+                    <em>回到完整模型</em>
+                  </div>
                 </div>
               </div>
               <div class="model-loading" id="modelLoading">
@@ -189,6 +211,6 @@
       </section>
     </main>
 
-    <script type="module" src="script.js?v=camera-gesture-1"></script>
+    <script type="module" src="script.js?v=gesture-guide-1"></script>
   </body>
 </html>
