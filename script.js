@@ -131,7 +131,6 @@ let lineOverlayRoot;
 let scanRoot;
 let flowRoot;
 let reliefVideo;
-let reliefParticleMaterial;
 let resetTimer = 0;
 const activePointers = new Map();
 let isDragging = false;
@@ -754,115 +753,6 @@ function createImageOverlay(loader, overlay, file, assetPrefix) {
   });
 }
 
-function createReliefParticles(overlay, assetPrefix) {
-  const image = new Image();
-  image.onload = () => {
-    const sampleCanvas = document.createElement("canvas");
-    const sampleSize = 220;
-    sampleCanvas.width = sampleSize;
-    sampleCanvas.height = sampleSize;
-    const context = sampleCanvas.getContext("2d", { willReadFrequently: true });
-    context.drawImage(image, 0, 0, sampleSize, sampleSize);
-    const pixels = context.getImageData(0, 0, sampleSize, sampleSize).data;
-    const candidates = [];
-
-    for (let y = 0; y < sampleSize; y += 2) {
-      for (let x = 0; x < sampleSize; x += 2) {
-        const index = (y * sampleSize + x) * 4;
-        const luminance = pixels[index] * 0.299 + pixels[index + 1] * 0.587 + pixels[index + 2] * 0.114;
-        const alpha = pixels[index + 3];
-        if (alpha > 32 && luminance > 28) {
-          candidates.push([x / sampleSize, y / sampleSize]);
-        }
-      }
-    }
-
-    if (!candidates.length) return;
-
-    let seed = 271828;
-    const random = () => {
-      seed = (seed * 1664525 + 1013904223) % 4294967296;
-      return seed / 4294967296;
-    };
-
-    const count = Math.min(900, candidates.length);
-    const positions = [];
-    const directions = [];
-    const phases = [];
-    const sizes = [];
-
-    for (let i = 0; i < count; i += 1) {
-      const point = candidates[Math.floor(random() * candidates.length)];
-      const jitterX = (random() - 0.5) * 0.018;
-      const jitterY = (random() - 0.5) * 0.018;
-      const x = (point[0] - 0.5 + jitterX) * overlay.width;
-      const y = (0.5 - point[1] + jitterY) * overlay.height;
-      const angle = random() * Math.PI * 2;
-      const spread = 0.09 + random() * 0.18;
-
-      positions.push(
-        x + overlay.position[0],
-        y + overlay.position[1],
-        overlay.position[2] + 0.018 + random() * 0.035,
-      );
-      directions.push(Math.cos(angle) * spread, Math.sin(angle) * spread, 0.02 + random() * 0.06);
-      phases.push(random());
-      sizes.push(6 + random() * 8);
-    }
-
-    const geometry = new THREE.BufferGeometry();
-    geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
-    geometry.setAttribute("direction", new THREE.Float32BufferAttribute(directions, 3));
-    geometry.setAttribute("phase", new THREE.Float32BufferAttribute(phases, 1));
-    geometry.setAttribute("size", new THREE.Float32BufferAttribute(sizes, 1));
-
-    reliefParticleMaterial = new THREE.ShaderMaterial({
-      uniforms: {
-        time: { value: 0 },
-      },
-      vertexShader: `
-        attribute vec3 direction;
-        attribute float phase;
-        attribute float size;
-        uniform float time;
-        varying float vLife;
-
-        void main() {
-          float life = fract(time * 0.24 + phase);
-          float burst = smoothstep(0.0, 0.18, life) * (1.0 - smoothstep(0.72, 1.0, life));
-          vec3 animated = position + direction * life * burst;
-          vec4 mvPosition = modelViewMatrix * vec4(animated, 1.0);
-          gl_Position = projectionMatrix * mvPosition;
-          gl_PointSize = size * (1.0 - life * 0.56) * (260.0 / -mvPosition.z);
-          vLife = life;
-        }
-      `,
-      fragmentShader: `
-        varying float vLife;
-
-        void main() {
-          vec2 center = gl_PointCoord - vec2(0.5);
-          float falloff = 1.0 - smoothstep(0.0, 0.5, length(center));
-          float alpha = falloff * (1.0 - smoothstep(0.44, 1.0, vLife)) * 0.72;
-          if (alpha < 0.025) discard;
-          gl_FragColor = vec4(vec3(1.0), alpha);
-        }
-      `,
-      transparent: true,
-      depthTest: false,
-      depthWrite: false,
-      blending: THREE.AdditiveBlending,
-    });
-
-    const particles = new THREE.Points(geometry, reliefParticleMaterial);
-    particles.name = overlay.name;
-    particles.renderOrder = 58;
-    particles.visible = app.dataset.scene === overlay.name;
-    lineOverlayRoot.add(particles);
-  };
-  image.src = `${assetPrefix}line-overlays/${overlay.fallbackFile}`;
-}
-
 function createLineOverlays() {
   if (!lineOverlayRoot) return;
   lineOverlayRoot.clear();
@@ -934,7 +824,6 @@ function createLineOverlays() {
       mesh.visible = app.dataset.scene === mesh.name;
       lineOverlayRoot.add(mesh);
       reliefVideo = video;
-      createReliefParticles(overlay, assetPrefix);
       video.addEventListener("error", () => {
         mesh.visible = false;
         if (overlay.fallbackFile) {
@@ -1129,9 +1018,6 @@ function resizeRenderer() {
 
 function animate() {
   requestAnimationFrame(animate);
-  if (reliefParticleMaterial) {
-    reliefParticleMaterial.uniforms.time.value = performance.now() * 0.001;
-  }
   currentRotation.x = THREE.MathUtils.lerp(currentRotation.x, targetRotation.x, 0.085);
   currentRotation.y = THREE.MathUtils.lerp(currentRotation.y, targetRotation.y, 0.085);
   currentRotation.z = THREE.MathUtils.lerp(currentRotation.z, targetRotation.z, 0.085);
