@@ -693,18 +693,56 @@ function playReliefVideo() {
   reliefVideo.load();
 }
 
-function createImageOverlay(loader, overlay, file, assetPrefix) {
-  loader.load(`${assetPrefix}line-overlays/${file}`, (texture) => {
-    texture.colorSpace = THREE.SRGBColorSpace;
-    texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
-    const material = new THREE.MeshBasicMaterial({
-      map: texture,
+function createOverlayMaterial(texture, overlay) {
+  if (overlay.whiteMask) {
+    return new THREE.ShaderMaterial({
+      uniforms: {
+        map: { value: texture },
+        opacity: { value: overlay.opacity },
+      },
+      vertexShader: `
+        varying vec2 vUv;
+
+        void main() {
+          vUv = uv;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        uniform sampler2D map;
+        uniform float opacity;
+        varying vec2 vUv;
+
+        void main() {
+          vec4 sampleColor = texture2D(map, vUv);
+          float luminance = dot(sampleColor.rgb, vec3(0.299, 0.587, 0.114));
+          float alpha = max(sampleColor.a, luminance) * opacity;
+          if (alpha < 0.02) discard;
+          gl_FragColor = vec4(vec3(1.0), alpha);
+        }
+      `,
       transparent: true,
-      opacity: overlay.opacity,
       depthTest: false,
       depthWrite: false,
       side: THREE.DoubleSide,
     });
+  }
+
+  return new THREE.MeshBasicMaterial({
+    map: texture,
+    transparent: true,
+    opacity: overlay.opacity,
+    depthTest: false,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+  });
+}
+
+function createImageOverlay(loader, overlay, file, assetPrefix) {
+  loader.load(`${assetPrefix}line-overlays/${file}`, (texture) => {
+    texture.colorSpace = THREE.SRGBColorSpace;
+    texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+    const material = createOverlayMaterial(texture, overlay);
     const mesh = new THREE.Mesh(new THREE.PlaneGeometry(overlay.width, overlay.height), material);
     mesh.name = overlay.name;
     mesh.position.set(...overlay.position);
@@ -736,6 +774,7 @@ function createLineOverlays() {
       file: "relief.webm",
       fallbackFile: "relief.png",
       type: "video",
+      whiteMask: true,
       width: 3.12 * overlayScale,
       height: 2.55 * overlayScale,
       position: [0, 0.15, 0.185],
@@ -777,14 +816,7 @@ function createLineOverlays() {
       texture.minFilter = THREE.LinearFilter;
       texture.magFilter = THREE.LinearFilter;
 
-      const material = new THREE.MeshBasicMaterial({
-        map: texture,
-        transparent: true,
-        opacity: overlay.opacity,
-        depthTest: false,
-        depthWrite: false,
-        side: THREE.DoubleSide,
-      });
+      const material = createOverlayMaterial(texture, overlay);
       const mesh = new THREE.Mesh(new THREE.PlaneGeometry(overlay.width, overlay.height), material);
       mesh.name = overlay.name;
       mesh.position.set(...overlay.position);
