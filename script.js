@@ -720,6 +720,33 @@ function playReliefVideo() {
   reliefVideo.load();
 }
 
+function pickPlayableVideoSource(files) {
+  const probe = document.createElement("video");
+  return files.find((source) => probe.canPlayType(source.type)) || files[0];
+}
+
+function createImageOverlay(loader, overlay, file, assetPrefix) {
+  loader.load(`${assetPrefix}line-overlays/${file}`, (texture) => {
+    texture.colorSpace = THREE.SRGBColorSpace;
+    texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+    const material = new THREE.MeshBasicMaterial({
+      map: texture,
+      transparent: true,
+      opacity: overlay.opacity,
+      depthTest: false,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    });
+    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(overlay.width, overlay.height), material);
+    mesh.name = overlay.name;
+    mesh.position.set(...overlay.position);
+    mesh.renderOrder = 55;
+    const activeName = app.dataset.scene === "foil" ? "outline" : app.dataset.scene;
+    mesh.visible = mesh.name === activeName;
+    lineOverlayRoot.add(mesh);
+  });
+}
+
 function createLineOverlays() {
   if (!lineOverlayRoot) return;
   lineOverlayRoot.clear();
@@ -739,7 +766,12 @@ function createLineOverlays() {
     {
       name: "relief",
       file: "relief.webm",
+      fallbackFile: "relief.png",
       type: "video",
+      sources: [
+        { file: "relief.mp4", type: "video/mp4" },
+        { file: "relief.webm", type: "video/webm" },
+      ],
       width: 3.12 * overlayScale,
       height: 2.55 * overlayScale,
       position: [0, 0.15, 0.185],
@@ -765,8 +797,9 @@ function createLineOverlays() {
 
   overlays.forEach((overlay) => {
     if (overlay.type === "video") {
+      const source = pickPlayableVideoSource(overlay.sources || [{ file: overlay.file, type: "video/webm" }]);
       const video = document.createElement("video");
-      video.src = `${assetPrefix}line-overlays/${overlay.file}`;
+      video.src = `${assetPrefix}line-overlays/${source.file}`;
       video.muted = true;
       video.playsInline = true;
       video.preload = "auto";
@@ -783,7 +816,7 @@ function createLineOverlays() {
 
       const material = new THREE.MeshBasicMaterial({
         map: texture,
-        transparent: true,
+        transparent: source.file.endsWith(".webm"),
         opacity: overlay.opacity,
         depthTest: false,
         depthWrite: false,
@@ -796,6 +829,12 @@ function createLineOverlays() {
       mesh.visible = app.dataset.scene === mesh.name;
       lineOverlayRoot.add(mesh);
       reliefVideo = video;
+      video.addEventListener("error", () => {
+        mesh.visible = false;
+        if (overlay.fallbackFile) {
+          createImageOverlay(loader, overlay, overlay.fallbackFile, assetPrefix);
+        }
+      }, { once: true });
       video.load();
       if (mesh.visible) {
         playReliefVideo();
@@ -803,25 +842,7 @@ function createLineOverlays() {
       return;
     }
 
-    loader.load(`${assetPrefix}line-overlays/${overlay.file}`, (texture) => {
-      texture.colorSpace = THREE.SRGBColorSpace;
-      texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
-      const material = new THREE.MeshBasicMaterial({
-        map: texture,
-        transparent: true,
-        opacity: overlay.opacity,
-        depthTest: false,
-        depthWrite: false,
-        side: THREE.DoubleSide,
-      });
-      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(overlay.width, overlay.height), material);
-      mesh.name = overlay.name;
-      mesh.position.set(...overlay.position);
-      mesh.renderOrder = 55;
-      const activeName = app.dataset.scene === "foil" ? "outline" : app.dataset.scene;
-      mesh.visible = mesh.name === activeName;
-      lineOverlayRoot.add(mesh);
-    });
+    createImageOverlay(loader, overlay, overlay.file, assetPrefix);
   });
 }
 
