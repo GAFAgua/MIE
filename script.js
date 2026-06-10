@@ -1049,7 +1049,7 @@ function createLineOverlays() {
       type: "video",
       whiteMask: true,
       cleanMask: true,
-      playbackRate: 0.5,
+      playbackRate: 0.25,
       sourceWidth: 1920,
       sourceHeight: 1080,
       sampleRadius: 2,
