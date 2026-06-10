@@ -10,7 +10,7 @@
     <link rel="preload" href="assets/line-overlays/relief.webm" as="video" type="video/webm" />
     <link rel="preload" href="assets/line-overlays/ram.png" as="image" />
     <link rel="preload" href="assets/line-overlays/symmetry.png" as="image" />
-    <link rel="stylesheet" href="styles.css?v=relief-video-1" />
+    <link rel="stylesheet" href="styles.css?v=camera-gesture-1" />
     <script type="importmap">
       {
         "imports": {
@@ -89,6 +89,14 @@
                 <strong id="hudTitle">待观察</strong>
                 <p id="hudText">选择右侧词条，系统将在模型表面显示对应识别线、采样点和结构说明。</p>
               </div>
+              <div class="gesture-panel" id="gesturePanel" aria-hidden="true">
+                <video id="gestureVideo" playsinline muted></video>
+                <canvas id="gestureCanvas"></canvas>
+                <div class="gesture-readout">
+                  <strong id="gestureName">手势待机</strong>
+                  <span id="gestureStatus">点击开启后使用摄像头识别手势</span>
+                </div>
+              </div>
               <div class="model-loading" id="modelLoading">
                 <strong>正在加载 3D 模型</strong>
                 <span id="modelLoadingDetail">先显示文物预览，模型加载完成后自动切换</span>
@@ -112,6 +120,7 @@
               <p>观察点</p>
               <strong id="detailFeature">完整金叶</strong>
               <span id="detailTranslate">当前为待观察状态，模型可拖动旋转。</span>
+              <button class="gesture-toggle" type="button" id="gestureToggle">开启摄像头手势</button>
             </div>
 
             <nav class="controls" aria-label="六个观察点">
@@ -180,6 +189,6 @@
       </section>
     </main>
 
-    <script type="module" src="script.js?v=relief-video-1"></script>
+    <script type="module" src="script.js?v=camera-gesture-1"></script>
   </body>
 </html>

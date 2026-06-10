@@ -89,6 +89,29 @@ h1 {
   font-size: 14px;
 }
 
+.gesture-toggle {
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid rgba(238, 242, 238, 0.28);
+  border-radius: 999px;
+  background: #e6e9e5;
+  color: #050606;
+  cursor: pointer;
+}
+
+.detail-card .gesture-toggle {
+  width: 100%;
+  min-height: 42px;
+  margin-top: 6px;
+  font-weight: 700;
+}
+
+.gesture-toggle.is-active {
+  border-color: rgba(214, 75, 70, 0.8);
+  background: #d64b46;
+  color: #fff;
+}
+
 .progress-track {
   height: 2px;
   overflow: hidden;
@@ -352,6 +375,67 @@ h1 {
   font-family: "PingFang SC", "Microsoft YaHei", "Noto Sans SC", Arial, sans-serif;
   font-size: 12px;
   line-height: 1.55;
+}
+
+.gesture-panel {
+  position: absolute;
+  left: 18px;
+  top: 18px;
+  z-index: 9;
+  width: 178px;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  border: 1px solid rgba(238, 242, 238, 0.32);
+  border-radius: 8px;
+  background: rgba(5, 6, 6, 0.86);
+  box-shadow: 0 16px 42px rgba(0, 0, 0, 0.42);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-6px);
+  transition: opacity 180ms ease, transform 180ms ease;
+}
+
+.gesture-panel.is-active {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.gesture-panel video,
+.gesture-panel canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform: scaleX(-1);
+}
+
+.gesture-panel video {
+  opacity: 0.54;
+}
+
+.gesture-readout {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: 8px;
+  display: grid;
+  gap: 3px;
+  padding: 7px 8px;
+  border: 1px solid rgba(238, 242, 238, 0.22);
+  background: rgba(0, 0, 0, 0.78);
+  color: #f3f1eb;
+}
+
+.gesture-readout strong {
+  font-size: 12px;
+  line-height: 1.2;
+}
+
+.gesture-readout span {
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.35;
 }
 
 .leaf-model {
@@ -1120,6 +1204,10 @@ h1 {
     width: min(300px, 58%);
   }
 
+  .gesture-panel {
+    width: 148px;
+  }
+
   .controls {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -1161,6 +1249,12 @@ h1 {
     right: 18px;
     bottom: 76px;
     width: auto;
+  }
+
+  .gesture-panel {
+    left: 18px;
+    top: 16px;
+    width: 118px;
   }
 }
 

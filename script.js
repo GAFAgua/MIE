@@ -24,6 +24,12 @@ const detailTranslate = document.querySelector("#detailTranslate");
 const annotationLabel = document.querySelector("#annotationLabel");
 const reportGrid = document.querySelector("#reportGrid");
 const resetButton = document.querySelector("#resetButton");
+const gestureToggle = document.querySelector("#gestureToggle");
+const gesturePanel = document.querySelector("#gesturePanel");
+const gestureVideo = document.querySelector("#gestureVideo");
+const gestureCanvas = document.querySelector("#gestureCanvas");
+const gestureName = document.querySelector("#gestureName");
+const gestureStatus = document.querySelector("#gestureStatus");
 
 const scenes = {
   1: {
@@ -108,6 +114,9 @@ const scenes = {
 
 const observed = new Set();
 const MODEL_FRONT_OFFSET_Y = -Math.PI / 2;
+const VISION_VERSION = "0.10.35";
+const GESTURE_MODEL_URL =
+  "https://storage.googleapis.com/mediapipe-tasks/gesture_recognizer/gesture_recognizer.task";
 const targetRotation = new THREE.Euler(-0.08, 0.16, 0);
 const currentRotation = new THREE.Euler(-0.08, 0.16, 0);
 
@@ -122,11 +131,27 @@ let scanRoot;
 let flowRoot;
 let reliefVideo;
 let resetTimer = 0;
+const activePointers = new Map();
 let isDragging = false;
 let startX = 0;
 let startY = 0;
+let gestureStartDistance = 0;
+let gestureStartAngle = 0;
+let gestureStartZoom = 1;
+let gestureStartRotationZ = 0;
+let gestureHadMultiplePointers = false;
+let swipeStartX = 0;
+let swipeStartY = 0;
+let swipeStartTime = 0;
 let targetZoom = 1;
 let currentZoom = 1;
+let gestureRecognizer;
+let gestureStream;
+let gestureRunning = false;
+let gestureLoopId = 0;
+let lastGestureVideoTime = -1;
+let lastGestureActionAt = 0;
+let lastGestureLabel = "";
 
 function syncLineOverlayFacing() {
   if (!lineOverlayRoot || !modelPivot) return;
@@ -155,6 +180,249 @@ function updateProgress() {
 function setTarget(rotation, zoom = 1) {
   targetRotation.set(rotation[0], rotation[1], rotation[2]);
   targetZoom = zoom;
+}
+
+function getGestureMetrics() {
+  const points = [...activePointers.values()];
+  if (points.length < 2) return null;
+  const [a, b] = points;
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  return {
+    distance: Math.hypot(dx, dy),
+    angle: Math.atan2(dy, dx),
+  };
+}
+
+function beginTwoFingerGesture() {
+  const metrics = getGestureMetrics();
+  if (!metrics) return;
+  gestureStartDistance = metrics.distance;
+  gestureStartAngle = metrics.angle;
+  gestureStartZoom = targetZoom;
+  gestureStartRotationZ = targetRotation.z;
+}
+
+function moveToScene(offset) {
+  const activeButton = buttons.find((button) => button.classList.contains("is-active"));
+  const current = activeButton ? Number(activeButton.dataset.key) : 0;
+  const next = ((current + offset + 5) % 6) + 1;
+  playScene(String(next));
+}
+
+function maybeSwipeToScene(endX, endY) {
+  if (gestureHadMultiplePointers) return;
+  const dx = endX - swipeStartX;
+  const dy = endY - swipeStartY;
+  const elapsed = performance.now() - swipeStartTime;
+  if (elapsed > 520 || Math.abs(dx) < 76 || Math.abs(dx) < Math.abs(dy) * 1.6) return;
+  moveToScene(dx < 0 ? 1 : -1);
+}
+
+function setGestureReadout(name, status) {
+  gestureName.textContent = name;
+  gestureStatus.textContent = status;
+}
+
+function canRunGestureAction(label, now) {
+  if (label !== lastGestureLabel) {
+    lastGestureLabel = label;
+    lastGestureActionAt = 0;
+  }
+  if (now - lastGestureActionAt < 1000) return false;
+  lastGestureActionAt = now;
+  return true;
+}
+
+function getHandCenter(landmarks) {
+  if (!landmarks?.length) return null;
+  const sum = landmarks.reduce(
+    (total, point) => {
+      total.x += point.x;
+      total.y += point.y;
+      return total;
+    },
+    { x: 0, y: 0 },
+  );
+  return {
+    x: sum.x / landmarks.length,
+    y: sum.y / landmarks.length,
+  };
+}
+
+function sceneFromHandPosition(landmarks) {
+  const center = getHandCenter(landmarks);
+  if (!center) return null;
+  const mirroredX = 1 - center.x;
+  return String(THREE.MathUtils.clamp(Math.floor(mirroredX * 6) + 1, 1, 6));
+}
+
+function drawGestureOverlay(landmarks, selectedKey) {
+  const context = gestureCanvas.getContext("2d");
+  const width = gestureCanvas.width;
+  const height = gestureCanvas.height;
+  context.clearRect(0, 0, width, height);
+
+  context.strokeStyle = "rgba(238, 242, 238, 0.32)";
+  context.lineWidth = 1;
+  for (let i = 1; i < 6; i += 1) {
+    const x = (i / 6) * width;
+    context.beginPath();
+    context.moveTo(x, 0);
+    context.lineTo(x, height);
+    context.stroke();
+  }
+
+  if (!landmarks?.length) return;
+  context.fillStyle = "rgba(214, 75, 70, 0.96)";
+  landmarks.forEach((point) => {
+    context.beginPath();
+    context.arc((1 - point.x) * width, point.y * height, 3.2, 0, Math.PI * 2);
+    context.fill();
+  });
+
+  if (!selectedKey) return;
+  context.fillStyle = "rgba(214, 75, 70, 0.28)";
+  context.fillRect(((Number(selectedKey) - 1) / 6) * width, 0, width / 6, height);
+}
+
+function handleGestureResult(result, now) {
+  const gesture = result.gestures?.[0]?.[0];
+  const landmarks = result.landmarks?.[0];
+  const label = gesture?.categoryName || "None";
+  const score = gesture?.score || 0;
+  let selectedKey = null;
+
+  if (!gesture || score < 0.62) {
+    drawGestureOverlay(landmarks, null);
+    setGestureReadout("识别中", "把手放入画面中央");
+    return;
+  }
+
+  if (label === "Pointing_Up") {
+    selectedKey = sceneFromHandPosition(landmarks);
+    drawGestureOverlay(landmarks, selectedKey);
+    setGestureReadout("指向选择", `当前指向观察点 ${selectedKey}`);
+    if (selectedKey && canRunGestureAction(`${label}-${selectedKey}`, now)) {
+      playScene(selectedKey);
+    }
+    return;
+  }
+
+  drawGestureOverlay(landmarks, null);
+
+  if (label === "Thumb_Up") {
+    setGestureReadout("下一项", "拇指向上切换到下一个观察点");
+    if (canRunGestureAction(label, now)) moveToScene(1);
+    return;
+  }
+
+  if (label === "Thumb_Down") {
+    setGestureReadout("上一项", "拇指向下切换到上一个观察点");
+    if (canRunGestureAction(label, now)) moveToScene(-1);
+    return;
+  }
+
+  if (label === "Closed_Fist") {
+    setGestureReadout("回到待观察", "握拳回到完整模型视角");
+    if (canRunGestureAction(label, now)) setIdle();
+    return;
+  }
+
+  setGestureReadout(label, "保持指向、点赞、倒赞或握拳可控制页面");
+}
+
+async function loadGestureRecognizer() {
+  if (gestureRecognizer) return gestureRecognizer;
+  setGestureReadout("正在加载", "首次加载手势模型会稍慢");
+  const visionUrl = `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${VISION_VERSION}/vision_bundle.mjs`;
+  const { FilesetResolver, GestureRecognizer } = await import(visionUrl);
+  const vision = await FilesetResolver.forVisionTasks(
+    `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${VISION_VERSION}/wasm`,
+  );
+  const options = {
+    baseOptions: {
+      modelAssetPath: GESTURE_MODEL_URL,
+    },
+    runningMode: "VIDEO",
+    numHands: 1,
+  };
+  try {
+    gestureRecognizer = await GestureRecognizer.createFromOptions(vision, {
+      ...options,
+      baseOptions: {
+        ...options.baseOptions,
+        delegate: "GPU",
+      },
+    });
+  } catch {
+    gestureRecognizer = await GestureRecognizer.createFromOptions(vision, options);
+  }
+  return gestureRecognizer;
+}
+
+async function startGestureControl() {
+  gesturePanel.classList.add("is-active");
+  gesturePanel.setAttribute("aria-hidden", "false");
+  gestureToggle.classList.add("is-active");
+  gestureToggle.textContent = "关闭手势";
+  try {
+    if (!navigator.mediaDevices?.getUserMedia) {
+      throw new Error("Camera API is unavailable.");
+    }
+    const recognizer = await loadGestureRecognizer();
+    gestureStream = await navigator.mediaDevices.getUserMedia({
+      video: {
+        facingMode: "user",
+        width: { ideal: 640 },
+        height: { ideal: 480 },
+      },
+      audio: false,
+    });
+    gestureVideo.srcObject = gestureStream;
+    await gestureVideo.play();
+    gestureCanvas.width = gestureVideo.videoWidth || 640;
+    gestureCanvas.height = gestureVideo.videoHeight || 480;
+    gestureRunning = true;
+    setGestureReadout("手势已开启", "用手指横向选择 1-6");
+
+    const detect = () => {
+      if (!gestureRunning) return;
+      const now = performance.now();
+      if (gestureVideo.currentTime !== lastGestureVideoTime) {
+        lastGestureVideoTime = gestureVideo.currentTime;
+        const result = recognizer.recognizeForVideo(gestureVideo, now);
+        handleGestureResult(result, now);
+      }
+      gestureLoopId = requestAnimationFrame(detect);
+    };
+    detect();
+  } catch (error) {
+    console.error(error);
+    gestureRunning = false;
+    window.cancelAnimationFrame(gestureLoopId);
+    gestureStream?.getTracks().forEach((track) => track.stop());
+    gestureStream = null;
+    gestureVideo.srcObject = null;
+    gestureToggle.textContent = "重试手势";
+    setGestureReadout("手势不可用", "需要浏览器允许摄像头权限");
+  }
+}
+
+function stopGestureControl() {
+  gestureRunning = false;
+  window.cancelAnimationFrame(gestureLoopId);
+  gestureStream?.getTracks().forEach((track) => track.stop());
+  gestureStream = null;
+  gestureVideo.srcObject = null;
+  gesturePanel.classList.remove("is-active");
+  gesturePanel.setAttribute("aria-hidden", "true");
+  gestureToggle.classList.remove("is-active");
+  gestureToggle.textContent = "开启摄像头手势";
+  lastGestureLabel = "";
+  lastGestureActionAt = 0;
+  const context = gestureCanvas.getContext("2d");
+  context?.clearRect(0, 0, gestureCanvas.width, gestureCanvas.height);
 }
 
 function setIdle() {
@@ -786,13 +1054,37 @@ window.addEventListener("keydown", (event) => {
 });
 
 modelStage.addEventListener("pointerdown", (event) => {
+  activePointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+  if (activePointers.size === 1) {
+    gestureHadMultiplePointers = false;
+  }
   isDragging = true;
   startX = event.clientX;
   startY = event.clientY;
+  swipeStartX = event.clientX;
+  swipeStartY = event.clientY;
+  swipeStartTime = performance.now();
   modelStage.setPointerCapture(event.pointerId);
+  if (activePointers.size === 2) {
+    gestureHadMultiplePointers = true;
+    beginTwoFingerGesture();
+  }
 });
 
 modelStage.addEventListener("pointermove", (event) => {
+  if (!activePointers.has(event.pointerId)) return;
+  activePointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+
+  if (activePointers.size >= 2) {
+    const metrics = getGestureMetrics();
+    if (!metrics || !gestureStartDistance) return;
+    const zoomRatio = metrics.distance / gestureStartDistance;
+    const angleDelta = metrics.angle - gestureStartAngle;
+    targetZoom = THREE.MathUtils.clamp(gestureStartZoom * zoomRatio, 0.82, 1.42);
+    targetRotation.z = THREE.MathUtils.clamp(gestureStartRotationZ + angleDelta * 0.55, -0.38, 0.38);
+    return;
+  }
+
   if (!isDragging) return;
 
   const dx = event.clientX - startX;
@@ -805,15 +1097,40 @@ modelStage.addEventListener("pointermove", (event) => {
 });
 
 modelStage.addEventListener("pointerup", (event) => {
-  isDragging = false;
-  modelStage.releasePointerCapture(event.pointerId);
+  const endedPointer = activePointers.get(event.pointerId);
+  activePointers.delete(event.pointerId);
+  if (endedPointer && activePointers.size === 0) {
+    maybeSwipeToScene(event.clientX, event.clientY);
+  }
+  isDragging = activePointers.size > 0;
+  if (activePointers.size === 1) {
+    const [remaining] = activePointers.values();
+    startX = remaining.x;
+    startY = remaining.y;
+  }
+  if (activePointers.size === 2) {
+    gestureHadMultiplePointers = true;
+    beginTwoFingerGesture();
+  }
+  if (modelStage.hasPointerCapture(event.pointerId)) {
+    modelStage.releasePointerCapture(event.pointerId);
+  }
 });
 
 modelStage.addEventListener("pointercancel", () => {
+  activePointers.clear();
   isDragging = false;
+  gestureHadMultiplePointers = false;
 });
 
 resetButton.addEventListener("click", resetObservation);
+gestureToggle.addEventListener("click", () => {
+  if (gestureRunning || gestureStream) {
+    stopGestureControl();
+    return;
+  }
+  startGestureControl();
+});
 window.addEventListener("resize", resizeRenderer);
 
 initRenderer();
