@@ -146,7 +146,7 @@ let annotationRoot;
 let lineOverlayRoot;
 let scanRoot;
 let flowRoot;
-let reliefVideo;
+const overlayVideos = new Map();
 let resetTimer = 0;
 const activePointers = new Map();
 let isDragging = false;
@@ -875,11 +875,13 @@ function setAnnotation(name) {
     lineOverlayRoot.children.forEach((child) => {
       child.visible = child.name === activeName;
     });
-    if (activeName === "relief") {
-      playReliefVideo();
-    } else if (reliefVideo) {
-      reliefVideo.pause();
-    }
+    overlayVideos.forEach((video, key) => {
+      if (key === activeName) {
+        playOverlayVideo(key);
+      } else {
+        video.pause();
+      }
+    });
   }
   if (flowRoot) {
     flowRoot.children.forEach((child) => {
@@ -888,29 +890,30 @@ function setAnnotation(name) {
   }
 }
 
-function playReliefVideo() {
-  if (!reliefVideo) return;
+function playOverlayVideo(name) {
+  const video = overlayVideos.get(name);
+  if (!video) return;
 
   const start = () => {
-    reliefVideo.pause();
+    video.pause();
     try {
-      reliefVideo.currentTime = 0;
+      video.currentTime = 0;
     } catch {
       // Some browsers delay seeking until metadata is available.
     }
-    const playPromise = reliefVideo.play();
+    const playPromise = video.play();
     if (playPromise) {
       playPromise.catch(() => {});
     }
   };
 
-  if (reliefVideo.readyState >= 1) {
+  if (video.readyState >= 1) {
     start();
     return;
   }
 
-  reliefVideo.addEventListener("loadedmetadata", start, { once: true });
-  reliefVideo.load();
+  video.addEventListener("loadedmetadata", start, { once: true });
+  video.load();
 }
 
 function createOverlayMaterial(texture, overlay) {
@@ -919,6 +922,10 @@ function createOverlayMaterial(texture, overlay) {
       uniforms: {
         map: { value: texture },
         opacity: { value: overlay.opacity },
+        texelSize: { value: new THREE.Vector2(1 / (overlay.sourceWidth || 1920), 1 / (overlay.sourceHeight || 1080)) },
+        cleanMask: { value: overlay.cleanMask ? 1 : 0 },
+        maskThreshold: { value: overlay.maskThreshold || 0.32 },
+        sampleRadius: { value: overlay.sampleRadius || 1 },
       },
       vertexShader: `
         varying vec2 vUv;
@@ -931,13 +938,40 @@ function createOverlayMaterial(texture, overlay) {
       fragmentShader: `
         uniform sampler2D map;
         uniform float opacity;
+        uniform vec2 texelSize;
+        uniform float cleanMask;
+        uniform float maskThreshold;
+        uniform float sampleRadius;
         varying vec2 vUv;
 
-        void main() {
-          vec4 sampleColor = texture2D(map, vUv);
+        float maskAlpha(vec2 uv) {
+          vec4 sampleColor = texture2D(map, uv);
           float luminance = dot(sampleColor.rgb, vec3(0.299, 0.587, 0.114));
-          float alpha = max(sampleColor.a, luminance) * opacity;
-          if (alpha < 0.02) discard;
+          return sampleColor.a > 0.04 ? sampleColor.a : smoothstep(0.62, 0.96, luminance);
+        }
+
+        void main() {
+          vec2 stepSize = texelSize * sampleRadius;
+          float center = maskAlpha(vUv);
+          float alpha = center;
+
+          if (cleanMask > 0.5) {
+            float solidCenter = smoothstep(maskThreshold, maskThreshold + 0.18, center);
+            float neighbors =
+              step(maskThreshold, maskAlpha(vUv + vec2(stepSize.x, 0.0))) +
+              step(maskThreshold, maskAlpha(vUv - vec2(stepSize.x, 0.0))) +
+              step(maskThreshold, maskAlpha(vUv + vec2(0.0, stepSize.y))) +
+              step(maskThreshold, maskAlpha(vUv - vec2(0.0, stepSize.y))) +
+              step(maskThreshold, maskAlpha(vUv + vec2(stepSize.x, stepSize.y))) +
+              step(maskThreshold, maskAlpha(vUv + vec2(-stepSize.x, stepSize.y))) +
+              step(maskThreshold, maskAlpha(vUv + vec2(stepSize.x, -stepSize.y))) +
+              step(maskThreshold, maskAlpha(vUv + vec2(-stepSize.x, -stepSize.y)));
+            float connected = smoothstep(2.5, 5.5, neighbors);
+            alpha = solidCenter * connected;
+          }
+
+          alpha *= opacity;
+          if (alpha < 0.16) discard;
           gl_FragColor = vec4(vec3(1.0), alpha);
         }
       `,
@@ -1010,11 +1044,20 @@ function createLineOverlays() {
     },
     {
       name: "symmetry",
-      file: "symmetry.png",
-      width: 3.05 * overlayScale,
-      height: 2.25 * overlayScale,
-      position: [0, -0.06, 0.188],
-      opacity: 0.88,
+      file: "symmetry.webm",
+      fallbackFile: "symmetry.png",
+      type: "video",
+      whiteMask: true,
+      cleanMask: true,
+      playbackRate: 0.25,
+      sourceWidth: 1920,
+      sourceHeight: 1080,
+      sampleRadius: 2,
+      maskThreshold: 0.34,
+      width: 5,
+      height: 5 * (2.64 / 4.7),
+      position: [0, -0.25, 0.19],
+      opacity: 1,
     },
   ];
 
@@ -1027,6 +1070,7 @@ function createLineOverlays() {
       video.preload = "auto";
       video.loop = false;
       video.crossOrigin = "anonymous";
+      video.playbackRate = overlay.playbackRate || 1;
       video.addEventListener("ended", () => {
         video.pause();
       });
@@ -1043,7 +1087,7 @@ function createLineOverlays() {
       mesh.renderOrder = 55;
       mesh.visible = app.dataset.scene === mesh.name;
       lineOverlayRoot.add(mesh);
-      reliefVideo = video;
+      overlayVideos.set(overlay.name, video);
       video.addEventListener("error", () => {
         mesh.visible = false;
         if (overlay.fallbackFile) {
@@ -1052,7 +1096,7 @@ function createLineOverlays() {
       }, { once: true });
       video.load();
       if (mesh.visible) {
-        playReliefVideo();
+        playOverlayVideo(overlay.name);
       }
       return;
     }
